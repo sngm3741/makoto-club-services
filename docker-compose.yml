@@ -1,14 +1,25 @@
 services:
-  api:
+  makoto-club-api:
+    image: ghcr.io/${GHCR_USER}/makoto-club-api:latest
     build:
       context: ./api
       dockerfile: Dockerfile
     container_name: makoto-club-api
+    env_file:
+      - ./.env
     environment:
-      HTTP_ADDR: ":8080"
-      MONGO_URI: "mongodb+srv://makotoclub_db_user:De5KpFfe7KIxGc0E@cluster0.sbmczp7.mongodb.net/?appName=Cluster0"
-      MONGO_DB: "makoto-club"
-      PING_COLLECTION: "pings"
+      - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - VIRTUAL_PATH=${VIRTUAL_PATH}
+      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
     ports:
       - "8080:8080"
+    networks:
+      - edge
     restart: unless-stopped
+    expose:
+      - "8080"
+networks:
+  edge:
+    external: true
+    name: ${EDGE_NETWORK}
