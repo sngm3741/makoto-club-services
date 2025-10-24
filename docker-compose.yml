@@ -1,0 +1,14 @@
+services:
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: makoto-club-api
+    environment:
+      HTTP_ADDR: ":8080"
+      MONGO_URI: "mongodb+srv://makotoclub_db_user:De5KpFfe7KIxGc0E@cluster0.sbmczp7.mongodb.net/?appName=Cluster0"
+      MONGO_DB: "makoto-club"
+      PING_COLLECTION: "pings"
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
