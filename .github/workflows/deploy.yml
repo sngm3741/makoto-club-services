@@ -38,8 +38,13 @@ jobs:
           command_timeout: 30m
           script: |
             set -e
-            cd ~/makoto-club-services
+            REPO_DIR=~/makoto-club-services
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone git@github.com:${{ github.repository }} "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
             git fetch origin main
             git reset --hard origin/main
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             docker compose pull $SERVICE_NAME
             docker compose up -d $SERVICE_NAME

@@ -70,7 +70,7 @@ func main() {
 	router.Use(middleware.Logger)
 	router.Use(middleware.Recoverer)
 
-	router.Get("/healthz", srv.healthHandler())
+	router.Get("/api/healthz", srv.healthHandler())
 	router.Get("/api/ping", srv.pingHandler())
 	router.Get("/api/stores", srv.storeListHandler())
 	router.Get("/api/reviews", srv.reviewListHandler())
