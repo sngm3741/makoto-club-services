@@ -23,6 +23,7 @@ make down      # 停止
 
 - `http://localhost:8080/healthz` で MongoDB Atlas との疎通チェック。
 - `http://localhost:8080/api/ping` で `pings` コレクションの最新ドキュメントを返却します（初回起動時に `{"message":"pong"}` を自動投入）。
+- `http://localhost:8080/api/stores` で Atlas の `tokumei-tenpo-ankeet` を集計した店舗サマリーを取得できます。
 
 ### Make ターゲット
 
@@ -42,6 +43,7 @@ make down      # 停止
 | `HTTP_ADDR` | `:8080` | API サーバーのリッスンアドレス |
 | `MONGO_URI` | `mongodb+srv://...` | MongoDB Atlas への接続 URI |
 | `MONGO_DB` | `makoto-club` | 利用するデータベース名 |
+| `SURVEY_COLLECTION` | `tokumei-tenpo-ankeet` | アンケートを格納するコレクション名 |
 | `PING_COLLECTION` | `pings` | Ping ドキュメント用コレクション |
 | `MONGO_CONNECT_TIMEOUT` | `10s` | MongoDB 接続タイムアウト |
 | `TIMEZONE` | `Asia/Tokyo` | 日時表示に利用するタイムゾーン |
