@@ -224,12 +224,12 @@ func (s *server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		now := time.Now()
-		if !claims.RegisteredClaims.VerifyExpiresAt(now, true) {
+		if claims.ExpiresAt != nil && now.After(claims.ExpiresAt.Time) {
 			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "トークンの有効期限が切れています"})
 			return
 		}
 
-		if !claims.RegisteredClaims.VerifyNotBefore(now, true) {
+		if claims.NotBefore != nil && now.Before(claims.NotBefore.Time) {
 			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "トークンの有効化時刻に達していません"})
 			return
 		}
