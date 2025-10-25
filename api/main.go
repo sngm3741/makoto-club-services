@@ -19,6 +19,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/golang-jwt/jwt/v5"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -35,15 +36,31 @@ type config struct {
 	timeout          time.Duration
 	timezone         string
 	serverLog        *log.Logger
+	jwtSecret        []byte
+	jwtIssuer        string
+	jwtAudience      string
 }
 
 type server struct {
-	logger   *log.Logger
-	client   *mongo.Client
-	database *mongo.Database
-	pings    *mongo.Collection
-	surveys  *mongo.Collection
-	location *time.Location
+	logger      *log.Logger
+	client      *mongo.Client
+	database    *mongo.Database
+	pings       *mongo.Collection
+	surveys     *mongo.Collection
+	location    *time.Location
+	jwtSecret   []byte
+	jwtIssuer   string
+	jwtAudience string
+}
+
+type contextKey string
+
+const authUserContextKey contextKey = "authUser"
+
+type authenticatedUser struct {
+	ID      string `json:"id"`
+	Name    string `json:"name,omitempty"`
+	Picture string `json:"picture,omitempty"`
 }
 
 func main() {
@@ -77,6 +94,7 @@ func main() {
 	router.Get("/api/reviews/new", srv.reviewLatestHandler())
 	router.Get("/api/reviews/high-rated", srv.reviewHighRatedHandler())
 	router.Get("/api/reviews/{id}", srv.reviewDetailHandler)
+	router.With(srv.authMiddleware).Get("/api/auth/verify", srv.authVerifyHandler())
 
 	httpServer := &http.Server{
 		Addr:              cfg.addr,
@@ -110,6 +128,9 @@ func loadConfig() config {
 		timeout:          timeout,
 		timezone:         envOrDefault("TIMEZONE", "Asia/Tokyo"),
 		serverLog:        log.New(os.Stdout, "[makoto-club-api] ", log.LstdFlags|log.Lshortfile),
+		jwtSecret:        mustLoadSecret("AUTH_LINE_JWT_SECRET"),
+		jwtIssuer:        envOrDefault("AUTH_LINE_JWT_ISSUER", "makoto-club-auth"),
+		jwtAudience:      os.Getenv("AUTH_LINE_JWT_AUDIENCE"),
 	}
 }
 
@@ -120,6 +141,14 @@ func envOrDefault(key, fallback string) string {
 	return fallback
 }
 
+func mustLoadSecret(key string) []byte {
+	secret := strings.TrimSpace(os.Getenv(key))
+	if secret == "" {
+		log.Fatalf("%s は必須です", key)
+	}
+	return []byte(secret)
+}
+
 func newServer(cfg config, client *mongo.Client) *server {
 	loc, err := time.LoadLocation(cfg.timezone)
 	if err != nil {
@@ -128,10 +157,13 @@ func newServer(cfg config, client *mongo.Client) *server {
 	}
 
 	srv := &server{
-		logger:   cfg.serverLog,
-		client:   client,
-		database: client.Database(cfg.mongoDatabase),
-		location: loc,
+		logger:      cfg.serverLog,
+		client:      client,
+		database:    client.Database(cfg.mongoDatabase),
+		location:    loc,
+		jwtSecret:   append([]byte(nil), cfg.jwtSecret...),
+		jwtIssuer:   cfg.jwtIssuer,
+		jwtAudience: cfg.jwtAudience,
 	}
 	srv.pings = srv.database.Collection(cfg.pingCollection)
 	srv.surveys = srv.database.Collection(cfg.surveyCollection)
@@ -153,10 +185,114 @@ func (s *server) healthHandler() http.HandlerFunc {
 
 		now := time.Now().In(s.location)
 		s.writeJSON(w, http.StatusOK, map[string]string{
-			"status": "ok_test",
+			"status": "ok_test２",
 			"time":   now.Format(time.RFC3339),
 		})
 	}
+}
+
+func (s *server) authMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
+		if authHeader == "" {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Authorization ヘッダーがありません"})
+			return
+		}
+
+		const bearerPrefix = "Bearer "
+		if !strings.HasPrefix(authHeader, bearerPrefix) {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "Bearer トークンを指定してください"})
+			return
+		}
+
+		tokenString := strings.TrimSpace(strings.TrimPrefix(authHeader, bearerPrefix))
+		if tokenString == "" {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "アクセストークンが空です"})
+			return
+		}
+
+		claims := &authClaims{}
+		token, err := jwt.ParseWithClaims(tokenString, claims, func(token *jwt.Token) (any, error) {
+			if token.Method != jwt.SigningMethodHS256 {
+				return nil, fmt.Errorf("unexpected signing method: %s", token.Method.Alg())
+			}
+			return s.jwtSecret, nil
+		}, jwt.WithLeeway(30*time.Second))
+		if err != nil || !token.Valid {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "アクセストークンが無効です"})
+			return
+		}
+
+		now := time.Now()
+		if !claims.RegisteredClaims.VerifyExpiresAt(now, true) {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "トークンの有効期限が切れています"})
+			return
+		}
+
+		if !claims.RegisteredClaims.VerifyNotBefore(now, true) {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "トークンの有効化時刻に達していません"})
+			return
+		}
+
+		if claims.Issuer != s.jwtIssuer {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "不正な issuer が指定されました"})
+			return
+		}
+
+		if s.jwtAudience != "" && !contains(claims.Audience, s.jwtAudience) {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "不正な audience が指定されました"})
+			return
+		}
+
+		if claims.Subject == "" {
+			s.writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "トークンにユーザー情報がありません"})
+			return
+		}
+
+		user := authenticatedUser{
+			ID:      claims.Subject,
+			Name:    claims.Name,
+			Picture: claims.Picture,
+		}
+
+		ctx := context.WithValue(r.Context(), authUserContextKey, user)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func (s *server) authVerifyHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user, ok := authenticatedUserFromContext(r.Context())
+		if !ok {
+			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "認証情報の取得に失敗しました"})
+			return
+		}
+
+		s.writeJSON(w, http.StatusOK, map[string]any{
+			"status": "ok",
+			"user":   user,
+		})
+	}
+}
+
+func authenticatedUserFromContext(ctx context.Context) (authenticatedUser, bool) {
+	user, ok := ctx.Value(authUserContextKey).(authenticatedUser)
+	return user, ok
+}
+
+func contains(slice []string, item string) bool {
+	for _, s := range slice {
+		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+type authClaims struct {
+	jwt.RegisteredClaims
+	Name    string `json:"name,omitempty"`
+	Picture string `json:"picture,omitempty"`
 }
 
 type pingDocument struct {
