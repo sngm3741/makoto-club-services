@@ -153,7 +153,7 @@ func (s *server) healthHandler() http.HandlerFunc {
 
 		now := time.Now().In(s.location)
 		s.writeJSON(w, http.StatusOK, map[string]string{
-			"status": "ok",
+			"status": "ok_test",
 			"time":   now.Format(time.RFC3339),
 		})
 	}
@@ -423,9 +423,9 @@ type reviewSummaryResponse struct {
 
 type reviewDetailResponse struct {
 	reviewSummaryResponse
-	Description        string `json:"description"`
-	AuthorDisplayName  string `json:"authorDisplayName"`
-	AuthorAvatarURL    string `json:"authorAvatarUrl,omitempty"`
+	Description       string `json:"description"`
+	AuthorDisplayName string `json:"authorDisplayName"`
+	AuthorAvatarURL   string `json:"authorAvatarUrl,omitempty"`
 }
 
 type reviewListResponse struct {
@@ -615,7 +615,7 @@ func deriveDates(period string) (visited string, created string) {
 	if period == "" {
 		now := time.Now()
 		return now.Format("2006-01"), now.Format("2006-01-02")
-}
+	}
 
 	replacer := strings.NewReplacer("年", "-", "月", "-01")
 	normalized := replacer.Replace(period)
@@ -623,7 +623,7 @@ func deriveDates(period string) (visited string, created string) {
 	if err != nil {
 		now := time.Now()
 		return now.Format("2006-01"), now.Format("2006-01-02")
-}
+	}
 	return t.Format("2006-01"), t.Format("2006-01-02")
 }
 
