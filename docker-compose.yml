@@ -9,7 +9,6 @@ services:
       - ./.env
     environment:
       - VIRTUAL_HOST=${VIRTUAL_HOST}
-      - VIRTUAL_PATH=${VIRTUAL_PATH}
       - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
       - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
     ports:
