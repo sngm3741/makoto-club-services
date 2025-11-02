@@ -1145,16 +1145,15 @@ func buildDiscordReviewMessage(adminBaseURL string, user authenticatedUser, summ
 
 	lines := []string{
 		"📝 **アンケートが投稿されました**",
-		"",
 	}
 
 	if postedAt := formatDiscordTimestamp(summary.CreatedAt); postedAt != "" {
-		lines = append(lines, fmt.Sprintf("🕐投稿日時: %s", postedAt))
+		lines = append(lines, fmt.Sprintf("🕐 投稿日時: %s", postedAt))
 	}
 
 	if username := strings.TrimSpace(user.Username); username != "" {
 		escaped := url.PathEscape(username)
-		lines = append(lines, fmt.Sprintf("👤投稿者: [@%s](https://twitter.com/%s)", username, escaped))
+		lines = append(lines, fmt.Sprintf("👤 投稿者: [@%s](https://twitter.com/%s)", username, escaped))
 	} else {
 		lines = append(lines, "👤投稿者: (未設定)")
 	}
