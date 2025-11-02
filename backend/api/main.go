@@ -560,7 +560,7 @@ func (s *server) storeListHandler() http.HandlerFunc {
 			if item == nil {
 				category := strings.TrimSpace(doc.Category)
 				if category == "" {
-					category = determineCategory(doc.StoreName)
+					category = "delivery_health"
 				}
 				item = &storeAggregate{
 					storeName:  doc.StoreName,
@@ -984,31 +984,6 @@ func parseFirstNumber(input string) (float64, bool) {
 	return value, true
 }
 
-var storeCategoryMap = map[string]string{
-	"恋するバニー":     "delivery_health",
-	"シンデレラ":      "delivery_health",
-	"ジュエル":       "delivery_health",
-	"プリンセスリング":   "soap",
-	"トワイライトガーデン": "box_health",
-	"シュガーガール":    "men_es",
-	"ミルキームーン":    "dc",
-	"ハートフルルーム":   "box_health",
-	"ドリームスパ":     "hotel_health",
-	"ブルーミスト":     "box_health",
-	"kazusa素人学園": "delivery_health",
-	"アンドエッセンス":   "delivery_health",
-	"ハピネス本店":     "box_health",
-	"ルミエール":      "hotel_health",
-	"ネクストステージ":   "delivery_health",
-}
-
-func determineCategory(storeName string) string {
-	if category, ok := storeCategoryMap[storeName]; ok {
-		return category
-	}
-	return "delivery_health"
-}
-
 func (s *server) notifyReviewReceipt(ctx context.Context, user authenticatedUser, summary reviewSummaryResponse, comment string) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -1079,11 +1054,11 @@ func buildReceiptMessage(summary reviewSummaryResponse, comment string) string {
 	if summary.SpecScore > 0 {
 		addSection("スペック", fmt.Sprintf("%d", summary.SpecScore))
 	}
-	if summary.Rating > 0 {
-		addSection("満足度", formatRatingValue(summary.Rating))
-	}
 	if trimmedComment := strings.TrimSpace(comment); trimmedComment != "" {
 		addSection("客層・スタッフ・環境等", trimmedComment)
+	}
+	if summary.Rating > 0 {
+		addSection("満足度", formatRatingValue(summary.Rating))
 	}
 
 	lines := []string{
@@ -1161,12 +1136,11 @@ func buildDiscordReviewMessage(adminBaseURL string, user authenticatedUser, summ
 	if summary.SpecScore > 0 {
 		addSection("スペック", fmt.Sprintf("%d", summary.SpecScore))
 	}
-	if summary.Rating > 0 {
-		addSection("満足度", formatRatingValue(summary.Rating))
-	}
-
 	if trimmed := strings.TrimSpace(comment); trimmed != "" {
 		addSection("客層・スタッフ・環境等", trimmed)
+	}
+	if summary.Rating > 0 {
+		addSection("満足度", formatRatingValue(summary.Rating))
 	}
 
 	lines := []string{
@@ -1175,17 +1149,17 @@ func buildDiscordReviewMessage(adminBaseURL string, user authenticatedUser, summ
 	}
 
 	if postedAt := formatDiscordTimestamp(summary.CreatedAt); postedAt != "" {
-		lines = append(lines, fmt.Sprintf("• 投稿日時: %s", postedAt))
+		lines = append(lines, fmt.Sprintf("🕐投稿日時: %s", postedAt))
 	}
 
 	if username := strings.TrimSpace(user.Username); username != "" {
 		escaped := url.PathEscape(username)
-		lines = append(lines, fmt.Sprintf("• 投稿者: [@%s](https://twitter.com/%s)", username, escaped))
+		lines = append(lines, fmt.Sprintf("👤投稿者: [@%s](https://twitter.com/%s)", username, escaped))
 	} else {
-		lines = append(lines, "• 投稿者: (未設定)")
+		lines = append(lines, "👤投稿者: (未設定)")
 	}
 
-	lines = append(lines, "", "**アンケート内容**")
+	lines = append(lines, "", "**【内容】**")
 	for _, section := range sections {
 		lines = append(lines, section...)
 		lines = append(lines, "")
@@ -1463,7 +1437,7 @@ func (s *server) collectReviews(ctx context.Context, params reviewQueryParams) (
 func buildReviewSummary(doc surveyDocument) reviewSummaryResponse {
 	category := strings.TrimSpace(doc.Category)
 	if category == "" {
-		category = determineCategory(doc.StoreName)
+		category = "delivery_health"
 	}
 	averageEarning := extractFirstInt(doc.AverageEarning)
 	waitTime := extractFirstInt(doc.WaitTime)
@@ -1515,7 +1489,7 @@ func deriveDates(period string) (visited string, created string) {
 func buildAdminReviewResponse(doc surveyDocument) adminReviewResponse {
 	category := strings.TrimSpace(doc.Category)
 	if category == "" {
-		category = determineCategory(doc.StoreName)
+		category = "delivery_health"
 	}
 	visitedAt, _ := deriveDates(doc.Period)
 

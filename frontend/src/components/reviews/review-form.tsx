@@ -448,7 +448,7 @@ export const ReviewForm = () => {
               validate: (value) =>
                 value >= RATING_MIN && value <= RATING_MAX
                   ? true
-                  : '総評は0〜5の範囲で選択してください',
+                  : '満足度を0〜5の範囲で選択してください',
             }}
             render={({ field }) => (
               <div className="space-y-3">
