@@ -283,7 +283,7 @@ export const ReviewForm = () => {
         <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
           <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-black font-semibold text-white">𝕏</span>
-            報酬はアンケート審査後に 𝕏 のDMでお送りします (PayPay 1,000 円分)
+            アンケートの審査後に報酬を 𝕏 のDMでお送りします (PayPay 1,000 円分)
           </p>
         </div>
       </header>
