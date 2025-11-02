@@ -7,7 +7,7 @@ export default function ContactPage() {
       </p>
       <div className="space-y-3 rounded-2xl bg-white p-6 text-sm text-slate-600 shadow">
         <p>
-          ・LINE: 公式アカウント「まことクラブ」からメッセージで「削除依頼」とお送りください。担当者が順次対応します。
+          ・LINE: 公式アカウント「マコトクラブ」からメッセージで「削除依頼」とお送りください。担当者が順次対応します。
         </p>
         <p>
           ・メール: <a href="mailto:support@makoto-club.jp" className="text-pink-600">support@makoto-club.jp</a>

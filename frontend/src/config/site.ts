@@ -1,4 +1,4 @@
-export const SITE_NAME = 'まことクラブ';
+export const SITE_NAME = 'マコトクラブ';
 
 export const NAV_LINKS = [
   { href: '/stores', label: '店舗一覧' },

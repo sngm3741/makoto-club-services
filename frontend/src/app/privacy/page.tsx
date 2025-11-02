@@ -3,7 +3,7 @@ export default function PrivacyPage() {
     <div className="space-y-4 pb-12">
       <h1 className="text-2xl font-semibold text-slate-900">プライバシーポリシー</h1>
       <p className="text-sm text-slate-600">
-        本ポリシーは、まことクラブが収集する個人情報の取り扱いについて定めるものです。正式な文面は運用開始前に差し替えます。
+        本ポリシーは、マコトクラブが収集する個人情報の取り扱いについて定めるものです。正式な文面は運用開始前に差し替えます。
       </p>
       <div className="space-y-3 rounded-2xl bg-white p-6 text-sm leading-relaxed text-slate-600 shadow">
         <p>

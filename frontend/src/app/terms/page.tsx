@@ -3,7 +3,7 @@ export default function TermsPage() {
     <div className="space-y-4 pb-12">
       <h1 className="text-2xl font-semibold text-slate-900">利用規約</h1>
       <p className="text-sm text-slate-600">
-        本サービス「まことクラブ」をご利用いただく前に、以下の利用規約をご確認ください。正式な文章は法務確認後に差し替え予定です。
+        本サービス「マコトクラブ」をご利用いただく前に、以下の利用規約をご確認ください。正式な文章は法務確認後に差し替え予定です。
       </p>
       <div className="space-y-3 rounded-2xl bg-white p-6 text-sm leading-relaxed text-slate-600 shadow">
         <p>
