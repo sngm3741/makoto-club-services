@@ -1,0 +1,24 @@
+services:
+  makoto-club-api:
+    image: ghcr.io/${GHCR_USER}/makoto-club-api:latest
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: makoto-club-api
+    env_file:
+      - ./.env
+    environment:
+      - VIRTUAL_HOST=${VIRTUAL_HOST}
+      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
+      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
+    ports:
+      - "8080:8080"
+    networks:
+      - edge
+    restart: unless-stopped
+    expose:
+      - "8080"
+networks:
+  edge:
+    external: true
+    name: ${EDGE_NETWORK}

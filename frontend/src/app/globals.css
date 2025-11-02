@@ -1,0 +1,31 @@
+@import 'tailwindcss';
+
+:root {
+  --background: #fff9fb;
+  --foreground: #1f1f1f;
+  --accent-pink: #f472b6;
+  --accent-violet: #a855f7;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-accent: var(--accent-pink);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', sans-serif;
+}
+
+a {
+  text-decoration: none;
+}
+
+*::selection {
+  background-color: rgba(244, 114, 182, 0.35);
+}

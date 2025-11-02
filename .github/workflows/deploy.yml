@@ -1,0 +1,51 @@
+name: build-and-deploy
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  SERVICE_NAME: makoto-club-api
+  GHCR_IMAGE_PREFIX: ghcr.io/${{ secrets.GHCR_USER }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+
+      - name: Build ${{ env.SERVICE_NAME }} image
+        run: |
+          docker build --platform linux/amd64 -t $GHCR_IMAGE_PREFIX/${{ env.SERVICE_NAME }}:${{ github.sha }} ./backend/api
+          docker tag $GHCR_IMAGE_PREFIX/${{ env.SERVICE_NAME }}:${{ github.sha }} $GHCR_IMAGE_PREFIX/${{ env.SERVICE_NAME }}:latest
+          docker push $GHCR_IMAGE_PREFIX/${{ env.SERVICE_NAME }}:${{ github.sha }}
+          docker push $GHCR_IMAGE_PREFIX/${{ env.SERVICE_NAME }}:latest
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to Sakura VPS
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          command_timeout: 30m
+          script: |
+            set -e
+            REPO_DIR=~/makoto-club
+            if [ ! -d "$REPO_DIR/.git" ]; then
+              git clone git@github.com:${{ github.repository }} "$REPO_DIR"
+            fi
+            cd "$REPO_DIR"
+            git fetch origin main
+            git reset --hard origin/main
+            echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
+            cd backend
+            docker compose pull $SERVICE_NAME
+            docker compose up -d $SERVICE_NAME
