@@ -278,21 +278,14 @@ export const ReviewForm = () => {
 
   return (
     <section className="space-y-6 rounded-3xl border border-slate-100 bg-white p-6 shadow-lg">
-      <header className="space-y-2">
+      <header className="space-y-3">
         <h1 className="text-xl font-semibold text-slate-900">アンケートを投稿する</h1>
-        <p className="text-sm text-slate-600">
-          X（旧Twitter）で本人確認をした上で、実際に働いた体験をシェアしてください。PayPay1,000円の特典はTwitterのDMでご案内します。
-        </p>
-        {!auth?.twitterUser ? (
-          <button
-            type="button"
-            onClick={handleTwitterLogin}
-            className="inline-flex items-center justify-center rounded-full bg-gradient-to-r from-pink-500 to-violet-500 px-4 py-2 text-sm font-semibold text-white shadow-md transition hover:from-pink-400 hover:to-violet-400"
-            disabled={authLoading}
-          >
-            {authLoading ? 'Xで認証中…' : 'Twitterでログインする'}
-          </button>
-        ) : null}
+        <div className="space-y-2 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-xs text-slate-600">
+          <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-black font-semibold text-white">𝕏</span>
+            報酬はアンケート審査後に 𝕏 のDMでお送りします (PayPay 1,000 円分)
+          </p>
+        </div>
       </header>
 
       <form className="space-y-5" onSubmit={handleSubmit(onSubmit)}>
@@ -447,7 +440,7 @@ export const ReviewForm = () => {
           />
         </Field>
 
-        <Field label="総評 (星評価)" required error={errors.rating?.message}>
+        <Field label="満足度" required error={errors.rating?.message}>
           <Controller
             name="rating"
             control={control}
@@ -505,7 +498,7 @@ export const ReviewForm = () => {
           disabled={status === 'submitting'}
           className="inline-flex w-full items-center justify-center rounded-full bg-gradient-to-r from-pink-500 to-violet-500 px-4 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-pink-400 hover:to-violet-400 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {status === 'submitting' ? '送信中...' : '投稿してPayPayを受け取る'}
+          {status === 'submitting' ? '送信中...' : '投稿する'}
         </button>
       </form>
 
@@ -515,7 +508,7 @@ export const ReviewForm = () => {
             <div className="space-y-3 text-center">
               <h2 className="text-lg font-semibold text-slate-900">投稿を受け付けました</h2>
               <p className="text-sm text-slate-600">
-                アンケートありがとうございます！内容を審査後、Twitter の DM（@
+                アンケートありがとうございます！内容を審査後、𝕏 の DM（@
                 {auth?.twitterUser?.username ?? '---'}）へ PayPay 1,000 円分のリンクをご案内します。
               </p>
               <p className="text-xs text-slate-400">

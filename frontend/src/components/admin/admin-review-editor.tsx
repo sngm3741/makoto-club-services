@@ -464,7 +464,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
           </label>
 
           <label className="space-y-2 text-sm">
-            <span className="font-semibold text-slate-700">総評 (星評価)</span>
+            <span className="font-semibold text-slate-700">満足度</span>
             <div className="flex items-center gap-3">
               <StarDisplay value={Number(form.rating) || 0} />
               <span className="text-xs text-slate-500">
