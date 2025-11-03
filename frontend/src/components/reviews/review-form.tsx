@@ -248,7 +248,7 @@ export const ReviewForm = () => {
         }
 
         setStatus('success');
-        reset();
+        reset(DEFAULT_FORM_VALUES);
         clearPendingReview();
         hasAutoSubmitted.current = false;
         setShowSuccessModal(true);
@@ -480,7 +480,7 @@ export const ReviewForm = () => {
 
         <div className="space-y-2 rounded-2xl bg-slate-50 p-4 text-xs text-slate-500">
           <p>投稿が完了すると、登録のTwitterアカウント宛に審査完了後のご案内をDMでお送りします。</p>
-          <p>虚偽または第三者の情報が含まれる場合、掲載を停止することがあります。</p>
+          <p>虚偽の情報が含まれる場合、掲載を停止することがあります。</p>
         </div>
 
         {status === 'success' ? (
