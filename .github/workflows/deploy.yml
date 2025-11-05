@@ -48,4 +48,4 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             cd backend
             docker compose pull $SERVICE_NAME
-            docker compose up -d $SERVICE_NAME
+            docker compose up -d --force-recreate $SERVICE_NAME
