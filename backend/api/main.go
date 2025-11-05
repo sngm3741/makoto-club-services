@@ -464,10 +464,10 @@ func (s *server) getStoreByID(ctx context.Context, id primitive.ObjectID) (store
 }
 
 func (s *server) findOrCreateStore(ctx context.Context, name, branch, prefecture, category string) (storeDocument, error) {
-    name = strings.TrimSpace(name)
-    branch = strings.TrimSpace(branch)
-    prefecture = strings.TrimSpace(prefecture)
-    category = canonicalIndustryCode(category)
+	name = strings.TrimSpace(name)
+	branch = strings.TrimSpace(branch)
+	prefecture = strings.TrimSpace(prefecture)
+	category = canonicalIndustryCode(category)
 	if name == "" {
 		return storeDocument{}, errors.New("店舗名が指定されていません")
 	}
@@ -844,7 +844,9 @@ func (s *server) storeListHandler() http.HandlerFunc {
 			limit = 10
 		}
 
-		filter := bson.M{}
+		filter := bson.M{
+			"stats.reviewCount": bson.M{"$gt": 0},
+		}
 		if prefectureFilter != "" {
 			filter["prefecture"] = prefectureFilter
 		}
@@ -869,24 +871,22 @@ func (s *server) storeListHandler() http.HandlerFunc {
 			}
 
 			avgEarning := 0
-			avgEarningLabel := ""
+			avgEarningLabel := "-"
 			if store.Stats.AvgEarning != nil {
 				avgEarning = int(math.Round(*store.Stats.AvgEarning))
-				if avgEarning > 0 {
-					avgEarningLabel = formatAverageEarningLabel(avgEarning)
-				}
+				avgEarningLabel = formatAverageEarningLabel(avgEarning)
+			} else if hasAvgFilter {
+				continue
 			}
 			if hasAvgFilter && avgEarning != avgEarningFilter {
 				continue
 			}
 
 			waitHours := 0
-			waitLabel := ""
+			waitLabel := "-"
 			if store.Stats.AvgWaitTime != nil {
 				waitHours = int(math.Round(*store.Stats.AvgWaitTime))
-				if waitHours > 0 {
-					waitLabel = formatWaitTimeLabel(waitHours)
-				}
+				waitLabel = formatWaitTimeLabel(waitHours)
 			}
 
 			category := categoryFilter
@@ -1520,7 +1520,7 @@ func (s *server) reviewCreateHandler() http.HandlerFunc {
 		}
 
 		now := time.Now().In(s.location)
-	category := canonicalIndustryCode(req.Category)
+		category := canonicalIndustryCode(req.Category)
 		comment := strings.TrimSpace(req.Comment)
 
 		storeName := strings.TrimSpace(req.StoreName)
@@ -2524,12 +2524,12 @@ func (s *server) reviewListHandler() http.HandlerFunc {
 		defer cancel()
 
 		query := r.URL.Query()
-	params := reviewQueryParams{
-		Prefecture: strings.TrimSpace(query.Get("prefecture")),
-		Category:   canonicalIndustryCode(query.Get("category")),
-		StoreName:  strings.TrimSpace(query.Get("storeName")),
-		Sort:       strings.TrimSpace(query.Get("sort")),
-	}
+		params := reviewQueryParams{
+			Prefecture: strings.TrimSpace(query.Get("prefecture")),
+			Category:   canonicalIndustryCode(query.Get("category")),
+			StoreName:  strings.TrimSpace(query.Get("storeName")),
+			Sort:       strings.TrimSpace(query.Get("sort")),
+		}
 		params.AvgEarning, params.HasAvgEarning = parseInt(query.Get("avgEarning"))
 		params.Page, _ = parsePositiveInt(query.Get("page"), 1)
 		params.Limit, _ = parsePositiveInt(query.Get("limit"), 10)

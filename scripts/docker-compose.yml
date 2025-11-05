@@ -14,3 +14,17 @@ services:
       - ./maintenance:/workspace/maintenance:ro
     command: >
       sh -c "pip install --no-cache-dir pymongo && python maintenance/normalize_industry_codes.py $NORMALIZE_ARGS"
+
+  recalculate-store-stats:
+    image: python:3.11-slim
+    working_dir: /workspace
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: ${MONGO_DB:-makoto-club}
+      STORE_COLLECTION: ${STORE_COLLECTION:-stores}
+      REVIEW_COLLECTION: ${REVIEW_COLLECTION:-reviews}
+      RECALC_ARGS: ${RECALC_ARGS:---dry-run}
+    volumes:
+      - ./maintenance:/workspace/maintenance:ro
+    command: >
+      sh -c "pip install --no-cache-dir pymongo && python maintenance/recalculate_store_stats.py $RECALC_ARGS"

@@ -7,6 +7,18 @@ type StoreCardProps = {
 };
 
 export const StoreCard = ({ store }: StoreCardProps) => {
+  const hasReviews = store.reviewCount > 0;
+  const averageDisplay = hasReviews
+    ? store.averageEarningLabel && store.averageEarningLabel !== '-'
+      ? store.averageEarningLabel
+      : `${store.averageEarning}万円`
+    : '-';
+  const waitDisplay = hasReviews
+    ? store.waitTimeLabel && store.waitTimeLabel !== '-'
+      ? store.waitTimeLabel
+      : `${store.waitTimeHours}時間`
+    : '-';
+
   return (
     <article className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center justify-between text-xs text-slate-500">
@@ -25,13 +37,13 @@ export const StoreCard = ({ store }: StoreCardProps) => {
         <div className="rounded-xl bg-slate-50 p-3">
           <dt className="font-medium text-slate-700">平均稼ぎ</dt>
           <dd className="mt-1 text-lg font-semibold text-pink-600">
-            {store.averageEarningLabel ?? `${store.averageEarning}万円`}
+            {averageDisplay}
           </dd>
         </div>
         <div className="rounded-xl bg-slate-50 p-3">
           <dt className="font-medium text-slate-700">平均待機時間</dt>
           <dd className="mt-1 text-lg font-semibold text-slate-800">
-            {store.waitTimeLabel ?? `${store.waitTimeHours}時間`}
+            {waitDisplay}
           </dd>
         </div>
       </dl>
