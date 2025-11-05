@@ -15,6 +15,7 @@ const logError = (...args: any[]) => {
 
 type AdminReview = {
   id: string;
+  storeId: string;
   storeName: string;
   branchName?: string;
   prefecture: string;

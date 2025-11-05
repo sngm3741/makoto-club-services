@@ -9,6 +9,7 @@ type StatusOption = 'pending' | 'approved' | 'rejected' | 'all';
 
 type AdminReviewListItem = {
   id: string;
+  storeId: string;
   storeName: string;
   branchName?: string;
   prefecture: string;

@@ -180,6 +180,8 @@ func main() {
 		r.Get("/reviews/{id}", srv.adminReviewDetailHandler())
 		r.Patch("/reviews/{id}", srv.adminReviewUpdateHandler())
 		r.Patch("/reviews/{id}/status", srv.adminReviewStatusHandler())
+		r.Get("/stores", srv.adminStoreSearchHandler())
+		r.Post("/stores", srv.adminStoreCreateHandler())
 	})
 
 	httpServer := &http.Server{
@@ -979,6 +981,7 @@ type reviewListResponse struct {
 
 type adminReviewResponse struct {
 	ID             string     `json:"id"`
+	StoreID        string     `json:"storeId"`
 	StoreName      string     `json:"storeName"`
 	BranchName     string     `json:"branchName,omitempty"`
 	Prefecture     string     `json:"prefecture"`
@@ -1006,6 +1009,16 @@ type adminReviewResponse struct {
 
 type adminReviewListResponse struct {
 	Items []adminReviewResponse `json:"items"`
+}
+
+type adminStoreResponse struct {
+	ID             string     `json:"id"`
+	Name           string     `json:"name"`
+	BranchName     string     `json:"branchName,omitempty"`
+	Prefecture     string     `json:"prefecture,omitempty"`
+	IndustryCodes  []string   `json:"industryCodes,omitempty"`
+	ReviewCount    int        `json:"reviewCount"`
+	LastReviewedAt *time.Time `json:"lastReviewedAt,omitempty"`
 }
 
 type createReviewRequest struct {
@@ -1714,6 +1727,7 @@ func buildAdminReviewResponse(review reviewDocument, store storeDocument) adminR
 
 	return adminReviewResponse{
 		ID:             review.ID.Hex(),
+		StoreID:        review.StoreID.Hex(),
 		StoreName:      store.Name,
 		BranchName:     strings.TrimSpace(store.BranchName),
 		Prefecture:     store.Prefecture,
@@ -1757,6 +1771,7 @@ type updateReviewStatusRequest struct {
 }
 
 type updateReviewContentRequest struct {
+	StoreID        *string  `json:"storeId"`
 	StoreName      *string  `json:"storeName"`
 	BranchName     *string  `json:"branchName"`
 	Prefecture     *string  `json:"prefecture"`
@@ -1908,6 +1923,37 @@ func (s *server) adminReviewUpdateHandler() http.HandlerFunc {
 		storeUpdate := bson.M{}
 		now := time.Now().In(s.location)
 		var addIndustry string
+		targetStoreID := existing.StoreID
+		storeChanged := false
+
+		if req.StoreID != nil {
+			storeIDHex := strings.TrimSpace(*req.StoreID)
+			if storeIDHex == "" {
+				s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDが指定されていません"})
+				return
+			}
+			newStoreID, err := primitive.ObjectIDFromHex(storeIDHex)
+			if err != nil {
+				s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
+				return
+			}
+			if newStoreID != existing.StoreID {
+				if err := s.stores.FindOne(ctx, bson.M{"_id": newStoreID}).Err(); err != nil {
+					if errors.Is(err, mongo.ErrNoDocuments) {
+						s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "指定された店舗が存在しません"})
+						return
+					}
+					s.logger.Printf("admin review content update store lookup failed id=%q storeId=%s err=%v", idParam, storeIDHex, err)
+					s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
+					return
+				}
+				reviewUpdate["storeId"] = newStoreID
+				targetStoreID = newStoreID
+				storeChanged = true
+			} else {
+				targetStoreID = existing.StoreID
+			}
+		}
 
 		if req.StoreName != nil {
 			name := strings.TrimSpace(*req.StoreName)
@@ -2004,17 +2050,17 @@ func (s *server) adminReviewUpdateHandler() http.HandlerFunc {
 			return
 		}
 
-		if len(storeUpdate) > 0 {
+		if len(storeUpdate) > 0 && !targetStoreID.IsZero() {
 			storeUpdate["updatedAt"] = now
-			if _, err := s.stores.UpdateByID(ctx, existing.StoreID, bson.M{"$set": storeUpdate}); err != nil {
-				s.logger.Printf("admin review content update store update failed id=%q storeId=%s err=%v", idParam, existing.StoreID.Hex(), err)
+			if _, err := s.stores.UpdateByID(ctx, targetStoreID, bson.M{"$set": storeUpdate}); err != nil {
+				s.logger.Printf("admin review content update store update failed id=%q storeId=%s err=%v", idParam, targetStoreID.Hex(), err)
 				s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の更新に失敗しました"})
 				return
 			}
 		}
-		if addIndustry != "" {
-			if _, err := s.stores.UpdateByID(ctx, existing.StoreID, bson.M{"$addToSet": bson.M{"industryCodes": addIndustry}}); err != nil {
-				s.logger.Printf("admin review content update industry append failed id=%q storeId=%s err=%v", idParam, existing.StoreID.Hex(), err)
+		if addIndustry != "" && !targetStoreID.IsZero() {
+			if _, err := s.stores.UpdateByID(ctx, targetStoreID, bson.M{"$addToSet": bson.M{"industryCodes": addIndustry}}); err != nil {
+				s.logger.Printf("admin review content update industry append failed id=%q storeId=%s err=%v", idParam, targetStoreID.Hex(), err)
 			}
 		}
 
@@ -2037,6 +2083,11 @@ func (s *server) adminReviewUpdateHandler() http.HandlerFunc {
 
 		if err := s.recalculateStoreStats(ctx, updated.StoreID); err != nil {
 			s.logger.Printf("admin review content update stats recalculation failed id=%q err=%v", idParam, err)
+		}
+		if storeChanged && existing.StoreID != updated.StoreID && !existing.StoreID.IsZero() {
+			if err := s.recalculateStoreStats(ctx, existing.StoreID); err != nil {
+				s.logger.Printf("admin review content update old store stats recalculation failed id=%q storeId=%s err=%v", idParam, existing.StoreID.Hex(), err)
+			}
 		}
 
 		store, err := s.getStoreByID(ctx, updated.StoreID)
@@ -2129,6 +2180,192 @@ func (s *server) adminReviewStatusHandler() http.HandlerFunc {
 
 		s.writeJSON(w, http.StatusOK, buildAdminReviewResponse(updated, store))
 	}
+}
+
+func (s *server) adminStoreSearchHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		queryValues := r.URL.Query()
+		prefecture := strings.TrimSpace(queryValues.Get("prefecture"))
+		industry := strings.TrimSpace(queryValues.Get("industry"))
+		keyword := strings.TrimSpace(queryValues.Get("q"))
+		limit, _ := parsePositiveInt(queryValues.Get("limit"), 20)
+		if limit <= 0 {
+			limit = 20
+		}
+		if limit > 100 {
+			limit = 100
+		}
+
+		filters := []bson.M{
+			{"stats.reviewCount": bson.M{"$gt": 0}},
+		}
+		if prefecture != "" {
+			filters = append(filters, bson.M{"prefecture": prefecture})
+		}
+		if industry != "" {
+			filters = append(filters, bson.M{"industryCodes": industry})
+		}
+		if keyword != "" {
+			pattern := regexp.QuoteMeta(keyword)
+			regex := primitive.Regex{Pattern: pattern, Options: "i"}
+			filters = append(filters, bson.M{
+				"$or": bson.A{
+					bson.M{"name": regex},
+					bson.M{"branchName": regex},
+				},
+			})
+		}
+
+		filter := bson.M{}
+		if len(filters) == 1 {
+			filter = filters[0]
+		} else {
+			filter["$and"] = filters
+		}
+
+		opts := options.Find().
+			SetSort(bson.D{{Key: "stats.reviewCount", Value: -1}, {Key: "name", Value: 1}}).
+			SetLimit(int64(limit))
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		cursor, err := s.stores.Find(ctx, filter, opts)
+		if err != nil {
+			s.logger.Printf("admin store search find failed: %v", err)
+			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗候補の取得に失敗しました"})
+			return
+		}
+		defer cursor.Close(ctx)
+
+		items := make([]adminStoreResponse, 0)
+		for cursor.Next(ctx) {
+			var doc storeDocument
+			if err := cursor.Decode(&doc); err != nil {
+				s.logger.Printf("admin store search decode failed: %v", err)
+				continue
+			}
+			items = append(items, storeDocumentToAdminResponse(doc))
+		}
+		if err := cursor.Err(); err != nil {
+			s.logger.Printf("admin store search cursor err: %v", err)
+			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗候補の取得に失敗しました"})
+			return
+		}
+
+		s.writeJSON(w, http.StatusOK, map[string]any{
+			"items": items,
+		})
+	}
+}
+
+type adminStoreCreateRequest struct {
+	Name         string `json:"name"`
+	BranchName   string `json:"branchName"`
+	Prefecture   string `json:"prefecture"`
+	IndustryCode string `json:"industryCode"`
+}
+
+type adminStoreCreateResponse struct {
+	Store   adminStoreResponse `json:"store"`
+	Created bool               `json:"created"`
+}
+
+func (s *server) adminStoreCreateHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req adminStoreCreateRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, maxReviewRequestBody)).Decode(&req); err != nil {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "リクエストの形式が不正です"})
+			return
+		}
+
+		name := strings.TrimSpace(req.Name)
+		if name == "" {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗名は必須です"})
+			return
+		}
+		prefecture := strings.TrimSpace(req.Prefecture)
+		if prefecture == "" {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "都道府県は必須です"})
+			return
+		}
+		industry := strings.TrimSpace(req.IndustryCode)
+		if industry == "" {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "業種コードは必須です"})
+			return
+		}
+		branch := strings.TrimSpace(req.BranchName)
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		filter := bson.M{"name": name}
+		if branch != "" {
+			filter["branchName"] = branch
+		}
+		if prefecture != "" {
+			filter["prefecture"] = prefecture
+		}
+
+		created := false
+		var store storeDocument
+		err := s.stores.FindOne(ctx, filter).Decode(&store)
+		if err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				created = true
+				store, err = s.findOrCreateStore(ctx, name, branch, prefecture, industry)
+				if err != nil {
+					s.logger.Printf("admin store create insert failed: %v", err)
+					s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗の作成に失敗しました"})
+					return
+				}
+			} else {
+				s.logger.Printf("admin store create find failed: %v", err)
+				s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
+				return
+			}
+		}
+
+		if !containsString(store.IndustryCodes, industry) {
+			update := bson.M{
+				"$addToSet": bson.M{"industryCodes": industry},
+				"$set":      bson.M{"updatedAt": time.Now().In(s.location)},
+			}
+			if _, err := s.stores.UpdateByID(ctx, store.ID, update); err != nil {
+				s.logger.Printf("admin store create add industry failed id=%s err=%v", store.ID.Hex(), err)
+			} else {
+				store, _ = s.getStoreByID(ctx, store.ID)
+			}
+		}
+
+		response := adminStoreCreateResponse{
+			Store:   storeDocumentToAdminResponse(store),
+			Created: created,
+		}
+
+		s.writeJSON(w, http.StatusCreated, response)
+	}
+}
+
+func storeDocumentToAdminResponse(doc storeDocument) adminStoreResponse {
+	return adminStoreResponse{
+		ID:             doc.ID.Hex(),
+		Name:           doc.Name,
+		BranchName:     strings.TrimSpace(doc.BranchName),
+		Prefecture:     doc.Prefecture,
+		IndustryCodes:  append([]string(nil), doc.IndustryCodes...),
+		ReviewCount:    doc.Stats.ReviewCount,
+		LastReviewedAt: doc.Stats.LastReviewedAt,
+	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, v := range values {
+		if strings.TrimSpace(v) == target {
+			return true
+		}
+	}
+	return false
 }
 
 func extractFirstInt(value any) int {

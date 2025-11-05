@@ -19,6 +19,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 
 type AdminReview = {
   id: string;
+  storeId: string;
   storeName: string;
   branchName?: string;
   prefecture: string;
@@ -42,6 +43,16 @@ type AdminReview = {
   createdAt: string;
   updatedAt: string;
   rating: number;
+};
+
+type StoreCandidate = {
+  id: string;
+  name: string;
+  branchName?: string;
+  prefecture?: string;
+  industryCodes: string[];
+  reviewCount: number;
+  lastReviewedAt?: string;
 };
 
 const STATUS_OPTIONS = [
@@ -88,6 +99,7 @@ const StarDisplay = ({ value }: { value: number }) => (
 export function AdminReviewEditor({ initialReview }: { initialReview: AdminReview }) {
   const [review, setReview] = useState<AdminReview>(initialReview);
   const [form, setForm] = useState({
+    storeId: initialReview.storeId ?? '',
     storeName: initialReview.storeName,
     branchName: initialReview.branchName ?? '',
     prefecture: initialReview.prefecture,
@@ -111,9 +123,15 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
   const [savingStatus, setSavingStatus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [storeCandidates, setStoreCandidates] = useState<StoreCandidate[]>([]);
+  const [storeSearchQuery, setStoreSearchQuery] = useState(initialReview.storeName);
+  const [storeSearchLoading, setStoreSearchLoading] = useState(false);
+  const [storeSearchError, setStoreSearchError] = useState<string | null>(null);
+  const [storeSearchExecuted, setStoreSearchExecuted] = useState(false);
 
   const contentBaseline = useMemo(
     () => ({
+      storeId: review.storeId ?? '',
       storeName: review.storeName,
       branchName: review.branchName ?? '',
       prefecture: review.prefecture,
@@ -170,6 +188,142 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
     [],
   );
 
+  const handleStoreSearch = useCallback(async () => {
+    if (!API_BASE) {
+      setError('API_BASE_URL が未設定です');
+      return;
+    }
+    if (!form.prefecture) {
+      setStoreSearchError('先に都道府県を選択してください');
+      return;
+    }
+    if (!form.category) {
+      setStoreSearchError('業種を選択してください');
+      return;
+    }
+
+    setStoreSearchLoading(true);
+    setStoreSearchError(null);
+    setStoreSearchExecuted(true);
+    try {
+      const params = new URLSearchParams();
+      params.set('prefecture', form.prefecture);
+      params.set('industry', form.category);
+      if (storeSearchQuery.trim()) {
+        params.set('q', storeSearchQuery.trim());
+      }
+      params.set('limit', '20');
+
+      const response = await fetch(`${API_BASE}/api/admin/stores?${params.toString()}`, {
+        cache: 'no-store',
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        const message =
+          data && typeof data === 'object' && data !== null && 'error' in data
+            ? (data as { error: string }).error
+            : `店舗候補の取得に失敗しました (${response.status})`;
+        throw new Error(message);
+      }
+      const payload = (await response.json()) as { items: StoreCandidate[] };
+      setStoreCandidates(payload.items ?? []);
+      if ((payload.items ?? []).length === 0) {
+        setStoreSearchError('該当する店舗が見つかりませんでした。');
+      }
+    } catch (err) {
+      setStoreSearchError(err instanceof Error ? err.message : '店舗候補の取得に失敗しました');
+    } finally {
+      setStoreSearchLoading(false);
+    }
+  }, [form.prefecture, form.category, storeSearchQuery]);
+
+  const handleStoreSelect = useCallback((candidate: StoreCandidate) => {
+    setForm((prev) => ({
+      ...prev,
+      storeId: candidate.id,
+      storeName: candidate.name,
+      branchName: candidate.branchName ?? '',
+      prefecture: candidate.prefecture ?? prev.prefecture,
+      category: candidate.industryCodes[0] ?? prev.category,
+    }));
+    setStoreSearchQuery(candidate.name);
+    setStoreSearchError(null);
+    setMessage(`店舗を「${candidate.name}${candidate.branchName ? ` ${candidate.branchName}` : ''}」に設定しました。`);
+    setError(null);
+  }, []);
+
+  const handleStoreCreate = useCallback(async () => {
+    if (!API_BASE) {
+      setError('API_BASE_URL が未設定です');
+      return;
+    }
+    if (!form.storeName.trim()) {
+      setStoreSearchError('店舗名を入力してください');
+      return;
+    }
+    if (!form.prefecture) {
+      setStoreSearchError('都道府県を選択してください');
+      return;
+    }
+    if (!form.category) {
+      setStoreSearchError('業種を選択してください');
+      return;
+    }
+
+    setStoreSearchLoading(true);
+    setStoreSearchError(null);
+    try {
+      const payload = {
+        name: form.storeName.trim(),
+        branchName: form.branchName.trim(),
+        prefecture: form.prefecture,
+        industryCode: form.category,
+      };
+      const response = await fetch(`${API_BASE}/api/admin/stores`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        const message =
+          data && typeof data === 'object' && data !== null && 'error' in data
+            ? (data as { error: string }).error
+            : `店舗の登録に失敗しました (${response.status})`;
+        throw new Error(message);
+      }
+
+      const data = (await response.json()) as { store: StoreCandidate; created: boolean };
+      const createdStore = data.store;
+      setForm((prev) => ({
+        ...prev,
+        storeId: createdStore.id,
+        storeName: createdStore.name,
+        branchName: createdStore.branchName ?? '',
+        prefecture: createdStore.prefecture ?? prev.prefecture,
+        category: createdStore.industryCodes[0] ?? prev.category,
+      }));
+      setStoreSearchQuery(createdStore.name);
+      setStoreCandidates((prev) => {
+        const filtered = prev.filter((item) => item.id !== createdStore.id);
+        return [createdStore, ...filtered];
+      });
+      setStoreSearchExecuted(true);
+      setMessage(
+        data.created
+          ? `店舗「${createdStore.name}${createdStore.branchName ? ` ${createdStore.branchName}` : ''}」を新規登録しました。`
+          : `店舗「${createdStore.name}${createdStore.branchName ? ` ${createdStore.branchName}` : ''}」を選択しました。`,
+      );
+      setError(null);
+    } catch (err) {
+      setStoreSearchError(err instanceof Error ? err.message : '店舗の登録に失敗しました');
+    } finally {
+      setStoreSearchLoading(false);
+    }
+  }, [form.storeName, form.branchName, form.prefecture, form.category]);
+
   const handleContentSave = useCallback(
     async (event: FormEvent) => {
       event.preventDefault();
@@ -177,11 +331,16 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
         setError('API_BASE_URL が未設定です');
         return;
       }
+      if (!form.storeId) {
+        setError('店舗候補から該当店舗を選択するか、新規店舗を登録してください');
+        return;
+      }
       setSavingContent(true);
       setMessage(null);
       setError(null);
       try {
         const payload: Record<string, unknown> = {
+          storeId: form.storeId,
           storeName: form.storeName.trim(),
           branchName: form.branchName.trim(),
           prefecture: form.prefecture.trim(),
@@ -215,6 +374,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
         const updated = (await response.json()) as AdminReview;
         setReview(updated);
         setForm({
+          storeId: updated.storeId ?? '',
           storeName: updated.storeName,
           branchName: updated.branchName ?? '',
           prefecture: updated.prefecture,
@@ -227,6 +387,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
           comment: updated.comment ?? '',
           rating: updated.rating.toString(),
         });
+        setStoreSearchQuery(updated.storeName);
         setMessage('アンケート内容を更新しました');
       } catch (err) {
         setError(err instanceof Error ? err.message : '内容の更新に失敗しました');
@@ -449,6 +610,85 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
                 ))}
               </select>
             </label>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex-1 min-w-[220px] space-y-1 text-sm">
+                <span className="font-semibold text-slate-700">店舗検索キーワード</span>
+                <input
+                  value={storeSearchQuery}
+                  onChange={(event) => setStoreSearchQuery(event.target.value)}
+                  placeholder="店舗名や一部キーワードを入力"
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
+                />
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleStoreSearch}
+                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
+                  disabled={storeSearchLoading}
+                >
+                  {storeSearchLoading ? '検索中…' : '候補を表示'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStoreCreate}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-pink-400 hover:text-pink-600 disabled:opacity-60"
+                  disabled={storeSearchLoading}
+                >
+                  新規店舗を登録
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              現在の選択:{' '}
+              {form.storeId
+                ? `${form.storeName}${form.branchName ? `（${form.branchName}）` : ''} / ${form.prefecture} / ${form.category}`
+                : '未選択です。候補から選ぶか新規店舗を登録してください。'}
+            </p>
+
+            {storeSearchError ? (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{storeSearchError}</p>
+            ) : null}
+
+            {storeSearchLoading ? (
+              <p className="text-xs text-slate-500">店舗候補を取得しています…</p>
+            ) : storeCandidates.length > 0 ? (
+              <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+                {storeCandidates.map((candidate) => {
+                  const selected = form.storeId === candidate.id;
+                  return (
+                    <li key={candidate.id} className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => handleStoreSelect(candidate)}
+                        className={`flex w-full flex-col items-start gap-1 rounded-md px-2 py-1 text-left transition ${
+                          selected ? 'bg-pink-50 text-pink-700' : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="text-sm font-semibold">
+                          {candidate.name}
+                          {candidate.branchName ? `（${candidate.branchName}）` : ''}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {candidate.prefecture ?? '都道府県不明'} / 評価件数 {candidate.reviewCount}
+                          {candidate.industryCodes.length > 0 ? ` / 業種: ${candidate.industryCodes.join(', ')}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : storeSearchExecuted ? (
+              <p className="text-xs text-slate-500">条件に一致する店舗が見つかりませんでした。</p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                都道府県と業種を選び、検索ボタンから既存店舗を探してください。
+              </p>
+            )}
           </div>
 
           <label className="space-y-1 text-sm">
