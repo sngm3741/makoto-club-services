@@ -124,10 +124,14 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [storeCandidates, setStoreCandidates] = useState<StoreCandidate[]>([]);
-  const [storeSearchQuery, setStoreSearchQuery] = useState(initialReview.storeName);
   const [storeSearchLoading, setStoreSearchLoading] = useState(false);
   const [storeSearchError, setStoreSearchError] = useState<string | null>(null);
   const [storeSearchExecuted, setStoreSearchExecuted] = useState(false);
+
+  const selectedCategoryLabel = useMemo(() => {
+    const match = REVIEW_CATEGORIES.find((item) => item.value === form.category);
+    return match?.label ?? form.category ?? '未選択';
+  }, [form.category]);
 
   const contentBaseline = useMemo(
     () => ({
@@ -209,9 +213,6 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
       const params = new URLSearchParams();
       params.set('prefecture', form.prefecture);
       params.set('industry', form.category);
-      if (storeSearchQuery.trim()) {
-        params.set('q', storeSearchQuery.trim());
-      }
       params.set('limit', '20');
 
       const response = await fetch(`${API_BASE}/api/admin/stores?${params.toString()}`, {
@@ -235,7 +236,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
     } finally {
       setStoreSearchLoading(false);
     }
-  }, [form.prefecture, form.category, storeSearchQuery]);
+  }, [form.prefecture, form.category]);
 
   const handleStoreSelect = useCallback((candidate: StoreCandidate) => {
     setForm((prev) => ({
@@ -246,7 +247,6 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
       prefecture: candidate.prefecture ?? prev.prefecture,
       category: candidate.industryCodes[0] ?? prev.category,
     }));
-    setStoreSearchQuery(candidate.name);
     setStoreSearchError(null);
     setMessage(`店舗を「${candidate.name}${candidate.branchName ? ` ${candidate.branchName}` : ''}」に設定しました。`);
     setError(null);
@@ -305,7 +305,6 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
         prefecture: createdStore.prefecture ?? prev.prefecture,
         category: createdStore.industryCodes[0] ?? prev.category,
       }));
-      setStoreSearchQuery(createdStore.name);
       setStoreCandidates((prev) => {
         const filtered = prev.filter((item) => item.id !== createdStore.id);
         return [createdStore, ...filtered];
@@ -387,7 +386,6 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
           comment: updated.comment ?? '',
           rating: updated.rating.toString(),
         });
-        setStoreSearchQuery(updated.storeName);
         setMessage('アンケート内容を更新しました');
       } catch (err) {
         setError(err instanceof Error ? err.message : '内容の更新に失敗しました');
@@ -475,6 +473,79 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
         </header>
 
         <form className="grid gap-4" onSubmit={handleContentSave}>
+          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm text-slate-700">
+                現在の都道府県（{form.prefecture || '未選択'}）と業種（{selectedCategoryLabel}）で店舗を絞り込みできます。
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleStoreSearch}
+                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
+                  disabled={storeSearchLoading}
+                >
+                  {storeSearchLoading ? '検索中…' : '店舗を絞り込む'}
+                </button>
+                <button
+                  type="button"
+                  onClick={handleStoreCreate}
+                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-pink-400 hover:text-pink-600 disabled:opacity-60"
+                  disabled={storeSearchLoading}
+                >
+                  新規店舗を登録
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              現在の選択:{' '}
+              {form.storeId
+                ? `${form.storeName}${form.branchName ? `（${form.branchName}）` : ''} / ${form.prefecture} / ${selectedCategoryLabel}`
+                : '未選択です。候補から選ぶか新規店舗を登録してください。'}
+            </p>
+
+            {storeSearchError ? (
+              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{storeSearchError}</p>
+            ) : null}
+
+            {storeSearchLoading ? (
+              <p className="text-xs text-slate-500">店舗候補を取得しています…</p>
+            ) : storeCandidates.length > 0 ? (
+              <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
+                {storeCandidates.map((candidate) => {
+                  const selected = form.storeId === candidate.id;
+                  return (
+                    <li key={candidate.id} className="p-3">
+                      <button
+                        type="button"
+                        onClick={() => handleStoreSelect(candidate)}
+                        className={`flex w-full flex-col items-start gap-1 rounded-md px-2 py-1 text-left transition ${
+                          selected ? 'bg-pink-50 text-pink-700' : 'hover:bg-slate-100'
+                        }`}
+                      >
+                        <span className="text-sm font-semibold">
+                          {candidate.name}
+                          {candidate.branchName ? `（${candidate.branchName}）` : ''}
+                        </span>
+                        <span className="text-xs text-slate-500">
+                          {candidate.prefecture ?? '都道府県不明'} / 登録済みアンケート数 {candidate.reviewCount}
+                          {candidate.industryCodes.length > 0 ? ` / 業種: ${candidate.industryCodes.join(', ')}` : ''}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : storeSearchExecuted ? (
+              <p className="text-xs text-slate-500">条件に一致する店舗が見つかりませんでした。</p>
+            ) : (
+              <p className="text-xs text-slate-500">
+                都道府県と業種を選んで「店舗を絞り込む」を押すと登録済み店舗が表示されます。
+              </p>
+            )}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="space-y-1 text-sm">
               <span className="font-semibold text-slate-700">店舗名</span>
@@ -610,85 +681,6 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
                 ))}
               </select>
             </label>
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex-1 min-w-[220px] space-y-1 text-sm">
-                <span className="font-semibold text-slate-700">店舗検索キーワード</span>
-                <input
-                  value={storeSearchQuery}
-                  onChange={(event) => setStoreSearchQuery(event.target.value)}
-                  placeholder="店舗名や一部キーワードを入力"
-                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
-                />
-              </label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={handleStoreSearch}
-                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
-                  disabled={storeSearchLoading}
-                >
-                  {storeSearchLoading ? '検索中…' : '候補を表示'}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleStoreCreate}
-                  className="rounded-full border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-pink-400 hover:text-pink-600 disabled:opacity-60"
-                  disabled={storeSearchLoading}
-                >
-                  新規店舗を登録
-                </button>
-              </div>
-            </div>
-
-            <p className="text-xs text-slate-500">
-              現在の選択:{' '}
-              {form.storeId
-                ? `${form.storeName}${form.branchName ? `（${form.branchName}）` : ''} / ${form.prefecture} / ${form.category}`
-                : '未選択です。候補から選ぶか新規店舗を登録してください。'}
-            </p>
-
-            {storeSearchError ? (
-              <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{storeSearchError}</p>
-            ) : null}
-
-            {storeSearchLoading ? (
-              <p className="text-xs text-slate-500">店舗候補を取得しています…</p>
-            ) : storeCandidates.length > 0 ? (
-              <ul className="divide-y divide-slate-200 rounded-lg border border-slate-200 bg-white">
-                {storeCandidates.map((candidate) => {
-                  const selected = form.storeId === candidate.id;
-                  return (
-                    <li key={candidate.id} className="p-3">
-                      <button
-                        type="button"
-                        onClick={() => handleStoreSelect(candidate)}
-                        className={`flex w-full flex-col items-start gap-1 rounded-md px-2 py-1 text-left transition ${
-                          selected ? 'bg-pink-50 text-pink-700' : 'hover:bg-slate-100'
-                        }`}
-                      >
-                        <span className="text-sm font-semibold">
-                          {candidate.name}
-                          {candidate.branchName ? `（${candidate.branchName}）` : ''}
-                        </span>
-                        <span className="text-xs text-slate-500">
-                          {candidate.prefecture ?? '都道府県不明'} / 評価件数 {candidate.reviewCount}
-                          {candidate.industryCodes.length > 0 ? ` / 業種: ${candidate.industryCodes.join(', ')}` : ''}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : storeSearchExecuted ? (
-              <p className="text-xs text-slate-500">条件に一致する店舗が見つかりませんでした。</p>
-            ) : (
-              <p className="text-xs text-slate-500">
-                都道府県と業種を選び、検索ボタンから既存店舗を探してください。
-              </p>
-            )}
           </div>
 
           <label className="space-y-1 text-sm">
