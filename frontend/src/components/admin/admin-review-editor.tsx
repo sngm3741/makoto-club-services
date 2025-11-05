@@ -127,11 +127,24 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
   const [storeSearchLoading, setStoreSearchLoading] = useState(false);
   const [storeSearchError, setStoreSearchError] = useState<string | null>(null);
   const [storeSearchExecuted, setStoreSearchExecuted] = useState(false);
+  const [filterPrefecture, setFilterPrefecture] = useState(initialReview.prefecture ?? '');
+  const [filterCategory, setFilterCategory] = useState(initialReview.category ?? '');
 
-  const selectedCategoryLabel = useMemo(() => {
-    const match = REVIEW_CATEGORIES.find((item) => item.value === form.category);
-    return match?.label ?? form.category ?? '未選択';
-  }, [form.category]);
+  const categoryLabelFromValue = useCallback((value?: string) => {
+    if (!value) return '未選択';
+    const match = REVIEW_CATEGORIES.find((item) => item.value === value);
+    return match?.label ?? value;
+  }, []);
+
+  const selectedCategoryLabel = useMemo(
+    () => categoryLabelFromValue(form.category),
+    [categoryLabelFromValue, form.category],
+  );
+
+  const filterCategoryLabel = useMemo(
+    () => categoryLabelFromValue(filterCategory),
+    [categoryLabelFromValue, filterCategory],
+  );
 
   const contentBaseline = useMemo(
     () => ({
@@ -197,12 +210,12 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
       setError('API_BASE_URL が未設定です');
       return;
     }
-    if (!form.prefecture) {
-      setStoreSearchError('先に都道府県を選択してください');
+    if (!filterPrefecture) {
+      setStoreSearchError('検索用の都道府県を選択してください');
       return;
     }
-    if (!form.category) {
-      setStoreSearchError('業種を選択してください');
+    if (!filterCategory) {
+      setStoreSearchError('検索用の業種を選択してください');
       return;
     }
 
@@ -211,9 +224,9 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
     setStoreSearchExecuted(true);
     try {
       const params = new URLSearchParams();
-      params.set('prefecture', form.prefecture);
-      params.set('industry', form.category);
-      params.set('limit', '20');
+      params.set('prefecture', filterPrefecture);
+      params.set('industry', filterCategory);
+      params.set('limit', '50');
 
       const response = await fetch(`${API_BASE}/api/admin/stores?${params.toString()}`, {
         cache: 'no-store',
@@ -236,7 +249,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
     } finally {
       setStoreSearchLoading(false);
     }
-  }, [form.prefecture, form.category]);
+  }, [filterPrefecture, filterCategory]);
 
   const handleStoreSelect = useCallback((candidate: StoreCandidate) => {
     setForm((prev) => ({
@@ -476,23 +489,56 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
           <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="max-w-xl space-y-1 text-sm text-slate-600">
-                <p>
-                  初期値としてアンケートの都道府県・業種を選択済みです。必要に応じて値を修正し「店舗を絞り込む」を押してください。
-                </p>
+                <p>検索用の都道府県・業種を設定し、「店舗を絞り込む」を押してください。</p>
                 <p className="text-xs text-slate-500">
-                  リストの中から該当店舗を選択すると、下の店舗名・支店名・都道府県が自動入力されます。
+                  候補から店舗を選択すると、下の入力欄（店舗名／支店名／都道府県／業種）が候補の情報で自動更新されます。
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleStoreSearch}
-                className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
-                disabled={storeSearchLoading}
-              >
-                {storeSearchLoading ? '検索中…' : '店舗を絞り込む'}
-              </button>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="space-y-1 text-sm">
+                  <span className="font-semibold text-slate-700">検索用 都道府県</span>
+                  <select
+                    value={filterPrefecture}
+                    onChange={(event) => setFilterPrefecture(event.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
+                  >
+                    <option value="">選択してください</option>
+                    {PREFECTURES.map((prefecture) => (
+                      <option key={prefecture} value={prefecture}>
+                        {prefecture}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="space-y-1 text-sm">
+                  <span className="font-semibold text-slate-700">検索用 業種</span>
+                  <select
+                    value={filterCategory}
+                    onChange={(event) => setFilterCategory(event.target.value)}
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
+                  >
+                    <option value="">選択してください</option>
+                    {REVIEW_CATEGORIES.map((category) => (
+                      <option key={category.value} value={category.value}>
+                        {category.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleStoreSearch}
+                  className="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white shadow disabled:opacity-60"
+                  disabled={storeSearchLoading}
+                >
+                  {storeSearchLoading ? '検索中…' : '店舗を絞り込む'}
+                </button>
+              </div>
             </div>
 
+            <p className="text-xs text-slate-500">
+              絞り込み条件: {filterPrefecture || '未選択'} / {filterCategoryLabel}
+            </p>
             <p className="text-xs text-slate-500">
               現在の選択:{' '}
               {form.storeId
@@ -527,7 +573,11 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
                             </span>
                             <span className="text-xs text-slate-500">
                               {candidate.prefecture ?? '都道府県不明'} / 登録済みアンケート数 {candidate.reviewCount}
-                              {candidate.industryCodes.length > 0 ? ` / 業種: ${candidate.industryCodes.join(', ')}` : ''}
+                              {candidate.industryCodes.length > 0
+                                ? ` / 業種: ${candidate.industryCodes
+                                    .map((code) => categoryLabelFromValue(code))
+                                    .join(', ')}`
+                                : ''}
                             </span>
                           </button>
                         </li>
