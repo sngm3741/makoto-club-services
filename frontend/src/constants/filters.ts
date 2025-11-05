@@ -49,13 +49,13 @@ export const PREFECTURES = [
 ];
 
 export const REVIEW_CATEGORIES = [
-  { value: 'delivery_health', label: 'デリヘル' },
-  { value: 'hotel_health', label: 'ホテヘル' },
-  { value: 'box_health', label: '箱ヘル' },
-  { value: 'soap', label: 'ソープ' },
+  { value: 'deriheru', label: 'デリヘル' },
+  { value: 'hoteheru', label: 'ホテヘル' },
+  { value: 'hakoheru', label: '箱ヘル' },
+  { value: 'sopu', label: 'ソープ' },
   { value: 'dc', label: 'DC' },
-  { value: 'fu_es', label: '風エス' },
-  { value: 'men_es', label: 'メンエス' },
+  { value: 'huesu', label: '風エス' },
+  { value: 'menesu', label: 'メンエス' },
 ] as const;
 
 export const AVERAGE_EARNING_OPTIONS = Array.from({ length: 21 }, (_, index) => {

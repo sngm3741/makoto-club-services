@@ -62,13 +62,13 @@ export const ReviewDetailContent = ({ review }: ReviewDetailProps) => {
 };
 
 const CATEGORY_LABEL_MAP: Record<string, string> = {
-  delivery_health: 'デリヘル',
-  hotel_health: 'ホテヘル',
-  box_health: '箱ヘル',
-  soap: 'ソープ',
+  deriheru: 'デリヘル',
+  hoteheru: 'ホテヘル',
+  hakoheru: '箱ヘル',
+  sopu: 'ソープ',
   dc: 'DC',
-  fu_es: '風エス',
-  men_es: 'メンエス',
+  huesu: '風エス',
+  menesu: 'メンエス',
 };
 
 const translateCategory = (category: string) =>

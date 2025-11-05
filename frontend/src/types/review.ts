@@ -1,11 +1,11 @@
 export type ReviewCategory =
-  | 'delivery_health'
-  | 'hotel_health'
-  | 'box_health'
-  | 'soap'
+  | 'deriheru'
+  | 'hoteheru'
+  | 'hakoheru'
+  | 'sopu'
   | 'dc'
-  | 'fu_es'
-  | 'men_es';
+  | 'huesu'
+  | 'menesu';
 
 export interface ReviewSummary {
   id: string;

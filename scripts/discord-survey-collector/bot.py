@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import json
 import os
 import re
@@ -7,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Iterable, Tuple
+from uuid import uuid4
 
 import discord
 from discord.ext import commands
@@ -25,6 +27,29 @@ STORE_ROOT = Path(os.getenv("STORE_ROOT", "data/stores"))
 STORE_ROOT.mkdir(parents=True, exist_ok=True)
 
 KEYWORD = "匿名店舗アンケート"
+
+_KANA_ROMAJI_OVERRIDES: Dict[str, str] = {
+    "SI": "shi",
+    "ZI": "ji",
+    "JI": "ji",
+    "TI": "chi",
+    "DI": "ji",
+    "TU": "tsu",
+    "DU": "zu",
+    "SHI": "shi",
+    "CHI": "chi",
+    "TSU": "tsu",
+    "HU": "fu",
+    "FU": "fu",
+    "WO": "o",
+    "WI": "wi",
+    "WE": "we",
+    "VA": "va",
+    "VI": "vi",
+    "VE": "ve",
+    "VO": "vo",
+    "V": "v",
+}
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -54,13 +79,59 @@ def _isoformat(dt: datetime) -> str:
     return dt.isoformat()
 
 
+def _romanize_kana_token(token: str) -> str:
+    upper = token.upper()
+    return _KANA_ROMAJI_OVERRIDES.get(upper, upper.lower())
+
+
 def _safe_path_component(value: str) -> str:
-    normalized = unicodedata.normalize("NFKC", value.strip())
-    normalized = normalized.replace("\\", "_").replace("/", "_")
-    normalized = re.sub(r"[\\/:*?\"<>|]", "_", normalized)
-    normalized = re.sub(r"\s+", "_", normalized)
-    normalized = normalized.strip("_")
-    return normalized or "unknown"
+    normalized = unicodedata.normalize("NFKC", (value or "").strip())
+    if not normalized:
+        return "unknown"
+
+    pieces: list[str] = []
+    for ch in normalized:
+        if ch.isascii():
+            if ch.isalnum():
+                pieces.append(ch)
+            elif ch in {" ", "-", "_"}:
+                pieces.append("-")
+            continue
+
+        ascii_equiv = unicodedata.normalize("NFKD", ch).encode("ascii", "ignore").decode("ascii")
+        if ascii_equiv:
+            pieces.append(ascii_equiv)
+            continue
+
+        name = unicodedata.name(ch, "")
+        candidate = ""
+        if name == "KATAKANA-HIRAGANA PROLONGED SOUND MARK":
+            pieces.append("-")
+            continue
+        if name.startswith("CJK UNIFIED IDEOGRAPH-"):
+            suffix = name.rsplit("-", 1)[-1].lower()
+            candidate = f"u{suffix}"
+        elif "LETTER" in name:
+            letter_part = name.split("LETTER", 1)[1]
+            letter_part = letter_part.replace(" SMALL ", " ")
+            letter_part = letter_part.strip()
+            tokens = [tok for tok in re.split(r"[-\\s]+", letter_part) if tok]
+            if tokens:
+                candidate = "".join(_romanize_kana_token(tok) for tok in tokens)
+        elif name:
+            candidate = name
+
+        if candidate:
+            pieces.append(candidate)
+        else:
+            pieces.append(f"u{ord(ch):04x}")
+
+    raw_slug = "".join(pieces)
+    slug = re.sub(r"[^0-9A-Za-z]+", "-", raw_slug).strip("-").lower()
+    if not slug:
+        digest = hashlib.sha1(normalized.encode("utf-8")).hexdigest()[:10]
+        slug = f"slug-{digest}"
+    return slug[:80]
 
 
 def _compute_store_path(guild_name: str, channel_name: str) -> Path:
@@ -193,9 +264,7 @@ async def _handle_attachments(
     if not message.attachments:
         return
 
-    guild_slug = _safe_path_component(guild_name)
-    channel_slug = _safe_path_component(channel_name)
-    base_dir = MEDIA_ROOT.joinpath(guild_slug, channel_slug)
+    base_dir = MEDIA_ROOT
     base_dir.mkdir(parents=True, exist_ok=True)
 
     attachments = entry.get("attachments")
@@ -205,13 +274,28 @@ async def _handle_attachments(
 
     for idx, attachment in enumerate(message.attachments):
         attachment_id = str(attachment.id)
-        suffix = Path(attachment.filename or f"file_{idx}").suffix
-        safe_name = _safe_path_component(Path(attachment.filename or f"file_{idx}").stem)
-        if safe_name:
-            local_filename = f"{message.id}_{safe_name}{suffix}"
+        suffix = Path(attachment.filename or f"file_{idx}").suffix or ""
+
+        existing_entry = existing.get(attachment_id)
+        if existing_entry:
+            stored_filename = existing_entry.get("stored_filename")
         else:
-            local_filename = f"{message.id}_{idx}{suffix}"
-        local_path = base_dir / local_filename
+            stored_filename = None
+
+        if not stored_filename:
+            stored_filename = f"{uuid4().hex}{suffix}"
+
+        local_path = base_dir / stored_filename
+
+        if existing_entry:
+            existing_entry["stored_filename"] = stored_filename
+            existing_entry["local_path"] = local_path.as_posix()
+            if not local_path.exists():
+                try:
+                    await attachment.save(local_path)
+                except Exception as exc:  # pylint: disable=broad-except
+                    print(f"        ⚠️ 添付ファイルの保存に失敗しました: {exc}")
+                    continue
 
         if attachment_id not in existing:
             if not local_path.exists():
@@ -224,6 +308,7 @@ async def _handle_attachments(
             attachment_entry = {
                 "id": attachment_id,
                 "file_name": attachment.filename,
+                "stored_filename": stored_filename,
                 "content_type": attachment.content_type,
                 "size": attachment.size,
                 "original_url": attachment.url,
