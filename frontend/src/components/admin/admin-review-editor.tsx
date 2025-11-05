@@ -84,6 +84,28 @@ const formatSpecScoreLabel = (value: number) => {
   return `${value}`;
 };
 
+const canonicalCategoryValue = (input?: string) => {
+  if (!input) return '';
+  const byValue = REVIEW_CATEGORIES.find((item) => item.value === input);
+  if (byValue) {
+    return byValue.value;
+  }
+  const byLabel = REVIEW_CATEGORIES.find((item) => item.label === input);
+  if (byLabel) {
+    return byLabel.value;
+  }
+  return input;
+};
+
+const categoryLabelFromValue = (value?: string) => {
+  if (!value) return '未選択';
+  const match = REVIEW_CATEGORIES.find((item) => item.value === value);
+  if (match) {
+    return match.label;
+  }
+  return value;
+};
+
 const StarDisplay = ({ value }: { value: number }) => (
   <span className="relative inline-block text-lg leading-none">
     <span className="text-slate-300">★★★★★</span>
@@ -103,7 +125,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
     storeName: initialReview.storeName,
     branchName: initialReview.branchName ?? '',
     prefecture: initialReview.prefecture,
-    category: initialReview.category,
+    category: canonicalCategoryValue(initialReview.category),
     visitedAt: initialReview.visitedAt,
     age: String(initialReview.age),
     specScore: String(initialReview.specScore),
@@ -128,23 +150,11 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
   const [storeSearchError, setStoreSearchError] = useState<string | null>(null);
   const [storeSearchExecuted, setStoreSearchExecuted] = useState(false);
   const [filterPrefecture, setFilterPrefecture] = useState(initialReview.prefecture ?? '');
-  const [filterCategory, setFilterCategory] = useState(initialReview.category ?? '');
+  const [filterCategory, setFilterCategory] = useState(canonicalCategoryValue(initialReview.category));
 
-  const categoryLabelFromValue = useCallback((value?: string) => {
-    if (!value) return '未選択';
-    const match = REVIEW_CATEGORIES.find((item) => item.value === value);
-    return match?.label ?? value;
-  }, []);
+  const selectedCategoryLabel = useMemo(() => categoryLabelFromValue(form.category), [form.category]);
 
-  const selectedCategoryLabel = useMemo(
-    () => categoryLabelFromValue(form.category),
-    [categoryLabelFromValue, form.category],
-  );
-
-  const filterCategoryLabel = useMemo(
-    () => categoryLabelFromValue(filterCategory),
-    [categoryLabelFromValue, filterCategory],
-  );
+  const filterCategoryLabel = useMemo(() => categoryLabelFromValue(filterCategory), [filterCategory]);
 
   const contentBaseline = useMemo(
     () => ({
@@ -252,18 +262,28 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
   }, [filterPrefecture, filterCategory]);
 
   const handleStoreSelect = useCallback((candidate: StoreCandidate) => {
+    const canonicalCodes = candidate.industryCodes
+      .map((code) => canonicalCategoryValue(code))
+      .filter((code) => code);
+    const selectedCategory = canonicalCodes[0] || form.category;
     setForm((prev) => ({
       ...prev,
       storeId: candidate.id,
       storeName: candidate.name,
       branchName: candidate.branchName ?? '',
       prefecture: candidate.prefecture ?? prev.prefecture,
-      category: candidate.industryCodes[0] ?? prev.category,
+      category: selectedCategory,
     }));
+    if (candidate.prefecture) {
+      setFilterPrefecture(candidate.prefecture);
+    }
+    if (canonicalCodes[0]) {
+      setFilterCategory(canonicalCodes[0]);
+    }
     setStoreSearchError(null);
     setMessage(`店舗を「${candidate.name}${candidate.branchName ? ` ${candidate.branchName}` : ''}」に設定しました。`);
     setError(null);
-  }, []);
+  }, [form.category]);
 
   const handleStoreCreate = useCallback(async () => {
     if (!API_BASE) {
@@ -310,14 +330,24 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
 
       const data = (await response.json()) as { store: StoreCandidate; created: boolean };
       const createdStore = data.store;
+      const canonicalCodes = createdStore.industryCodes
+        .map((code) => canonicalCategoryValue(code))
+        .filter((code) => code);
+      const selectedCategory = canonicalCodes[0] || form.category;
       setForm((prev) => ({
         ...prev,
         storeId: createdStore.id,
         storeName: createdStore.name,
         branchName: createdStore.branchName ?? '',
         prefecture: createdStore.prefecture ?? prev.prefecture,
-        category: createdStore.industryCodes[0] ?? prev.category,
+        category: selectedCategory,
       }));
+      if (createdStore.prefecture) {
+        setFilterPrefecture(createdStore.prefecture);
+      }
+      if (canonicalCodes[0]) {
+        setFilterCategory(canonicalCodes[0]);
+      }
       setStoreCandidates((prev) => {
         const filtered = prev.filter((item) => item.id !== createdStore.id);
         return [createdStore, ...filtered];

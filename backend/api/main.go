@@ -464,10 +464,10 @@ func (s *server) getStoreByID(ctx context.Context, id primitive.ObjectID) (store
 }
 
 func (s *server) findOrCreateStore(ctx context.Context, name, branch, prefecture, category string) (storeDocument, error) {
-	name = strings.TrimSpace(name)
-	branch = strings.TrimSpace(branch)
-	prefecture = strings.TrimSpace(prefecture)
-	category = strings.TrimSpace(category)
+    name = strings.TrimSpace(name)
+    branch = strings.TrimSpace(branch)
+    prefecture = strings.TrimSpace(prefecture)
+    category = canonicalIndustryCode(category)
 	if name == "" {
 		return storeDocument{}, errors.New("店舗名が指定されていません")
 	}
@@ -735,6 +735,55 @@ func contains(slice []string, item string) bool {
 	return false
 }
 
+func canonicalIndustryCode(input string) string {
+	trimmed := strings.TrimSpace(input)
+	if trimmed == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(trimmed)
+	switch lower {
+	case "deriheru", "delivery_health":
+		return "デリヘル"
+	case "hoteheru", "hotel_health":
+		return "ホテヘル"
+	case "hakoheru", "hako_heru", "hako-health":
+		return "箱ヘル"
+	case "sopu", "soap":
+		return "ソープ"
+	case "dc":
+		return "DC"
+	case "huesu", "fuesu":
+		return "風エス"
+	case "menesu", "mensu", "mens_es":
+		return "メンエス"
+	}
+
+	switch trimmed {
+	case "デリヘル", "ホテヘル", "箱ヘル", "ソープ", "DC", "風エス", "メンエス":
+		return trimmed
+	}
+
+	return trimmed
+}
+
+func canonicalIndustryCodes(codes []string) []string {
+	result := make([]string, 0, len(codes))
+	seen := make(map[string]struct{})
+	for _, code := range codes {
+		canonical := canonicalIndustryCode(code)
+		if canonical == "" {
+			continue
+		}
+		if _, ok := seen[canonical]; ok {
+			continue
+		}
+		seen[canonical] = struct{}{}
+		result = append(result, canonical)
+	}
+	return result
+}
+
 type authClaims struct {
 	jwt.RegisteredClaims
 	Name              string `json:"name,omitempty"`
@@ -786,7 +835,7 @@ func (s *server) storeListHandler() http.HandlerFunc {
 
 		query := r.URL.Query()
 		prefectureFilter := strings.TrimSpace(query.Get("prefecture"))
-		categoryFilter := strings.TrimSpace(query.Get("category"))
+		categoryFilter := canonicalIndustryCode(query.Get("category"))
 		avgEarningFilter, hasAvgFilter := parseInt(query.Get("avgEarning"))
 
 		page, _ := parsePositiveInt(query.Get("page"), 1)
@@ -1471,7 +1520,7 @@ func (s *server) reviewCreateHandler() http.HandlerFunc {
 		}
 
 		now := time.Now().In(s.location)
-		category := strings.TrimSpace(req.Category)
+	category := canonicalIndustryCode(req.Category)
 		comment := strings.TrimSpace(req.Comment)
 
 		storeName := strings.TrimSpace(req.StoreName)
@@ -2475,12 +2524,12 @@ func (s *server) reviewListHandler() http.HandlerFunc {
 		defer cancel()
 
 		query := r.URL.Query()
-		params := reviewQueryParams{
-			Prefecture: strings.TrimSpace(query.Get("prefecture")),
-			Category:   strings.TrimSpace(query.Get("category")),
-			StoreName:  strings.TrimSpace(query.Get("storeName")),
-			Sort:       strings.TrimSpace(query.Get("sort")),
-		}
+	params := reviewQueryParams{
+		Prefecture: strings.TrimSpace(query.Get("prefecture")),
+		Category:   canonicalIndustryCode(query.Get("category")),
+		StoreName:  strings.TrimSpace(query.Get("storeName")),
+		Sort:       strings.TrimSpace(query.Get("sort")),
+	}
 		params.AvgEarning, params.HasAvgEarning = parseInt(query.Get("avgEarning"))
 		params.Page, _ = parsePositiveInt(query.Get("page"), 1)
 		params.Limit, _ = parsePositiveInt(query.Get("limit"), 10)
