@@ -1,4 +1,5 @@
 import type { ReviewDetail } from '@/types/review';
+import { formatDateTime } from '@/utils/date';
 
 type ReviewDetailProps = {
   review: ReviewDetail;
@@ -20,7 +21,8 @@ export const ReviewDetailContent = ({ review }: ReviewDetailProps) => {
         <p className="text-sm text-slate-500">
           訪問時期: {review.visitedAt} / 年齢: {review.age}歳 / スペック: {review.specScore}
         </p>
-        <div className="flex items-center gap-2 text-xs text-slate-500">
+        <div className="flex items-center gap-3 text-sm text-slate-600">
+          <span className="font-semibold text-slate-700">満足度</span>
           <StarDisplay value={review.rating} />
           <span>{review.rating.toFixed(1)} / 5</span>
         </div>
@@ -54,7 +56,7 @@ export const ReviewDetailContent = ({ review }: ReviewDetailProps) => {
       </section>
 
       <footer className="flex items-center justify-between text-xs text-slate-500">
-        <p>投稿日: {review.createdAt}</p>
+        <p>投稿日: {formatDateTime(review.createdAt)}</p>
         {review.authorDisplayName ? <p>投稿者: {review.authorDisplayName}</p> : null}
       </footer>
     </article>

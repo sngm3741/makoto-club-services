@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import type { ReviewSummary } from '@/types/review';
+import { formatDateTime } from '@/utils/date';
 
 type ReviewCardProps = {
   review: ReviewSummary;
@@ -11,7 +12,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
     <article className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="flex items-center justify-between text-xs text-slate-500">
         <span className="rounded-full bg-pink-50 px-3 py-1 text-pink-600">{review.prefecture}</span>
-        <time dateTime={review.createdAt}>{review.createdAt}</time>
+        <time dateTime={review.createdAt}>{formatDateTime(review.createdAt)}</time>
       </div>
       <div>
         <h3 className="text-lg font-semibold text-slate-900">
@@ -39,7 +40,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
           <dd className="mt-1 text-lg font-semibold text-pink-600">{review.averageEarning}万円</dd>
         </div>
         <div className="rounded-xl bg-slate-50 p-3">
-          <dt className="font-medium text-slate-700">待機時間</dt>
+          <dt className="font-medium text-slate-700">平均待機時間</dt>
           <dd className="mt-1 text-lg font-semibold text-slate-800">{review.waitTimeHours}時間</dd>
         </div>
       </dl>
