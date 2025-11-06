@@ -894,11 +894,17 @@ func (s *server) storeListHandler() http.HandlerFunc {
 				category = store.IndustryCodes[0]
 			}
 
+			avgRating := 0.0
+			if store.Stats.AvgRating != nil {
+				avgRating = math.Round(*store.Stats.AvgRating*10) / 10
+			}
+
 			summary := storeSummaryResponse{
 				ID:                  store.ID.Hex(),
 				StoreName:           store.Name,
 				Prefecture:          store.Prefecture,
 				Category:            category,
+				AverageRating:       avgRating,
 				AverageEarning:      avgEarning,
 				AverageEarningLabel: avgEarningLabel,
 				WaitTimeHours:       waitHours,
@@ -1172,15 +1178,16 @@ func formatVisitedDisplay(visited string) string {
 }
 
 type storeSummaryResponse struct {
-	ID                  string `json:"id"`
-	StoreName           string `json:"storeName"`
-	Prefecture          string `json:"prefecture"`
-	Category            string `json:"category"`
-	AverageEarning      int    `json:"averageEarning"`
-	AverageEarningLabel string `json:"averageEarningLabel,omitempty"`
-	WaitTimeHours       int    `json:"waitTimeHours"`
-	WaitTimeLabel       string `json:"waitTimeLabel,omitempty"`
-	ReviewCount         int    `json:"reviewCount"`
+	ID                  string  `json:"id"`
+	StoreName           string  `json:"storeName"`
+	Prefecture          string  `json:"prefecture"`
+	Category            string  `json:"category"`
+	AverageRating       float64 `json:"averageRating"`
+	AverageEarning      int     `json:"averageEarning"`
+	AverageEarningLabel string  `json:"averageEarningLabel,omitempty"`
+	WaitTimeHours       int     `json:"waitTimeHours"`
+	WaitTimeLabel       string  `json:"waitTimeLabel,omitempty"`
+	ReviewCount         int     `json:"reviewCount"`
 }
 
 type storeListResponse struct {

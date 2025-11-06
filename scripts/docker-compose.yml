@@ -28,3 +28,16 @@ services:
       - ./maintenance:/workspace/maintenance:ro
     command: >
       sh -c "pip install --no-cache-dir pymongo && python maintenance/recalculate_store_stats.py $RECALC_ARGS"
+
+  randomize-review-periods:
+    image: python:3.11-slim
+    working_dir: /workspace
+    environment:
+      MONGO_URI: ${MONGO_URI}
+      MONGO_DB: ${MONGO_DB:-makoto-club}
+      REVIEW_COLLECTION: ${REVIEW_COLLECTION:-reviews}
+      RANDOMIZE_ARGS: ${RANDOMIZE_ARGS:---dry-run}
+    volumes:
+      - ./maintenance:/workspace/maintenance:ro
+    command: >
+      sh -c "pip install --no-cache-dir pymongo && python maintenance/randomize_review_periods.py $RANDOMIZE_ARGS"
