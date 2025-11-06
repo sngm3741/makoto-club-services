@@ -32,12 +32,17 @@ function aggregateMockStores(): StoreSummary[] {
           existing.reviewCount) *
           10) / 10;
       existing.waitTimeLabel = `${existing.waitTimeHours}時間`;
+      existing.averageRating =
+        Math.round(((existing.averageRating * (existing.reviewCount - 1) + review.rating) /
+          existing.reviewCount) *
+          10) / 10;
     } else {
       storeMap.set(review.storeName, {
         id: `store-${storeMap.size + 1}`,
         storeName: review.storeName,
         prefecture: review.prefecture,
         category: review.category,
+        averageRating: review.rating,
         averageEarning: review.averageEarning,
         averageEarningLabel: `${review.averageEarning}万円`,
         waitTimeHours: review.waitTimeHours,
