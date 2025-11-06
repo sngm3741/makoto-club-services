@@ -836,8 +836,6 @@ func (s *server) storeListHandler() http.HandlerFunc {
 		query := r.URL.Query()
 		prefectureFilter := strings.TrimSpace(query.Get("prefecture"))
 		categoryFilter := canonicalIndustryCode(query.Get("category"))
-		avgEarningFilter, hasAvgFilter := parseInt(query.Get("avgEarning"))
-
 		page, _ := parsePositiveInt(query.Get("page"), 1)
 		limit, _ := parsePositiveInt(query.Get("limit"), 10)
 		if limit <= 0 {
@@ -875,11 +873,6 @@ func (s *server) storeListHandler() http.HandlerFunc {
 			if store.Stats.AvgEarning != nil {
 				avgEarning = int(math.Round(*store.Stats.AvgEarning))
 				avgEarningLabel = formatAverageEarningLabel(avgEarning)
-			} else if hasAvgFilter {
-				continue
-			}
-			if hasAvgFilter && avgEarning != avgEarningFilter {
-				continue
 			}
 
 			waitHours := 0
@@ -1602,15 +1595,13 @@ func (s *server) reviewCreateHandler() http.HandlerFunc {
 }
 
 type reviewQueryParams struct {
-	Prefecture    string
-	Category      string
-	CategoryRaw   string
-	StoreName     string
-	Sort          string
-	AvgEarning    int
-	HasAvgEarning bool
-	Page          int
-	Limit         int
+	Prefecture  string
+	Category    string
+	CategoryRaw string
+	StoreName   string
+	Sort        string
+	Page        int
+	Limit       int
 }
 
 func (s *server) collectReviews(ctx context.Context, params reviewQueryParams) ([]reviewSummaryResponse, error) {
@@ -1624,9 +1615,6 @@ func (s *server) collectReviews(ctx context.Context, params reviewQueryParams) (
 			categories = append(categories, raw)
 		}
 		filter["industryCode"] = bson.M{"$in": categories}
-	}
-	if params.HasAvgEarning {
-		filter["averageEarning"] = params.AvgEarning
 	}
 
 	if params.Prefecture != "" || params.StoreName != "" {
@@ -2545,7 +2533,6 @@ func (s *server) reviewListHandler() http.HandlerFunc {
 			StoreName:   strings.TrimSpace(query.Get("storeName")),
 			Sort:        strings.TrimSpace(query.Get("sort")),
 		}
-		params.AvgEarning, params.HasAvgEarning = parseInt(query.Get("avgEarning"))
 		params.Page, _ = parsePositiveInt(query.Get("page"), 1)
 		params.Limit, _ = parsePositiveInt(query.Get("limit"), 10)
 		if params.Limit <= 0 {

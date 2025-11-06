@@ -8,7 +8,6 @@ const API_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BAS
 type StoreSearchParams = {
   prefecture?: string;
   category?: string;
-  avgEarning?: number;
   page?: number;
   limit?: number;
 };
@@ -56,11 +55,10 @@ function aggregateMockStores(): StoreSummary[] {
 }
 
 function filterStores(stores: StoreSummary[], params: StoreSearchParams) {
-  const { prefecture, category, avgEarning } = params;
+  const { prefecture, category } = params;
   return stores.filter((store) => {
     if (prefecture && store.prefecture !== prefecture) return false;
     if (category && store.category !== category) return false;
-    if (avgEarning !== undefined && Math.round(store.averageEarning) !== avgEarning) return false;
     return true;
   });
 }
@@ -83,9 +81,6 @@ export async function fetchStores(params: StoreSearchParams) {
   const url = new URL('/api/stores', API_BASE_URL);
   if (params.prefecture) url.searchParams.set('prefecture', params.prefecture);
   if (params.category) url.searchParams.set('category', params.category);
-  if (params.avgEarning !== undefined) {
-    url.searchParams.set('avgEarning', String(params.avgEarning));
-  }
   url.searchParams.set('page', String(page));
   url.searchParams.set('limit', String(limit));
 

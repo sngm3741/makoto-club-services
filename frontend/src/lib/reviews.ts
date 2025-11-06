@@ -12,7 +12,6 @@ const API_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BAS
 type ReviewSearchParams = {
   prefecture?: string;
   category?: string;
-  avgEarning?: number;
   storeName?: string;
   sort?: string;
   page?: number;
@@ -40,20 +39,12 @@ function toSummary(review: ReviewDetail): ReviewSummary {
   };
 }
 
-function filterMockReviews({
-  prefecture,
-  category,
-  avgEarning,
-  storeName,
-}: ReviewSearchParams) {
+function filterMockReviews({ prefecture, category, storeName }: ReviewSearchParams) {
   return MOCK_REVIEWS.filter((review) => {
     if (prefecture && review.prefecture !== prefecture) {
       return false;
     }
     if (category && review.category !== category) {
-      return false;
-    }
-    if (avgEarning !== undefined && review.averageEarning !== avgEarning) {
       return false;
     }
     if (storeName && !review.storeName.includes(storeName)) {
@@ -100,9 +91,6 @@ export async function fetchReviews(
   const url = new URL('/api/reviews', API_BASE_URL);
   if (params.prefecture) url.searchParams.set('prefecture', params.prefecture);
   if (params.category) url.searchParams.set('category', params.category);
-  if (params.avgEarning !== undefined) {
-    url.searchParams.set('avgEarning', String(params.avgEarning));
-  }
   if (params.storeName) url.searchParams.set('storeName', params.storeName);
   if (params.sort) url.searchParams.set('sort', params.sort);
   url.searchParams.set('page', String(page));

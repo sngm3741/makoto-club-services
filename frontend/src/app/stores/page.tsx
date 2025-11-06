@@ -6,7 +6,6 @@ import { fetchStores } from '@/lib/stores';
 type StoresSearchParams = {
   prefecture?: string;
   category?: string;
-  avgEarning?: string;
   page?: string;
 };
 
@@ -18,12 +17,9 @@ export default async function StoresPage({
   const resolved = await searchParams;
 
   const page = parseNumber(resolved.page) || 1;
-  const avgEarning = resolved.avgEarning ? parseNumber(resolved.avgEarning) : undefined;
-
   const { items, total, limit } = await fetchStores({
     prefecture: resolved.prefecture,
     category: resolved.category,
-    avgEarning,
     page,
   });
 
@@ -32,14 +28,13 @@ export default async function StoresPage({
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold text-slate-900">店舗一覧</h1>
         <p className="text-sm text-slate-600">
-          都道府県・業種・平均稼ぎで絞り込んで、自分に合うお店をチェックできます。1ページ10件ずつ表示します。
+          都道府県と業種で絞り込んで、自分に合うお店をチェックできます。1ページ10件ずつ表示します。
         </p>
       </header>
 
       <SearchForm
         initialPrefecture={resolved.prefecture}
         initialCategory={resolved.category}
-        initialAvgEarning={avgEarning}
       />
 
       <section className="space-y-4">
@@ -64,7 +59,6 @@ export default async function StoresPage({
         searchParams={{
           prefecture: resolved.prefecture,
           category: resolved.category,
-          avgEarning,
         }}
       />
     </div>

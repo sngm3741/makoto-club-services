@@ -3,38 +3,28 @@
 import { FormEvent, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import {
-  AVERAGE_EARNING_OPTIONS,
-  PREFECTURES,
-  REVIEW_CATEGORIES,
-} from '@/constants/filters';
+import { PREFECTURES, REVIEW_CATEGORIES } from '@/constants/filters';
 
 type SearchFormProps = {
   initialPrefecture?: string;
   initialCategory?: string;
-  initialAvgEarning?: number;
   redirectPath?: string;
 };
 
 export const SearchForm = ({
   initialPrefecture = '',
   initialCategory = '',
-  initialAvgEarning,
   redirectPath = '/stores',
 }: SearchFormProps) => {
   const router = useRouter();
   const [prefecture, setPrefecture] = useState(initialPrefecture);
   const [category, setCategory] = useState(initialCategory);
-  const [avgEarning, setAvgEarning] = useState<number | ''>(
-    typeof initialAvgEarning === 'number' ? initialAvgEarning : '',
-  );
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const params = new URLSearchParams();
     if (prefecture) params.set('prefecture', prefecture);
     if (category) params.set('category', category);
-    if (avgEarning !== '') params.set('avgEarning', String(avgEarning));
     const queryString = params.toString();
     router.push(queryString ? `${redirectPath}?${queryString}` : redirectPath);
   };
@@ -75,27 +65,6 @@ export const SearchForm = ({
         >
           <option value="">指定なし</option>
           {REVIEW_CATEGORIES.map((item) => (
-            <option key={item.value} value={item.value}>
-              {item.label}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      <div className="space-y-1">
-        <label className="text-sm font-semibold text-slate-700" htmlFor="avgEarning">
-          平均稼ぎ
-        </label>
-        <select
-          id="avgEarning"
-          value={avgEarning === '' ? '' : String(avgEarning)}
-          onChange={(event) =>
-            setAvgEarning(event.target.value === '' ? '' : Number(event.target.value))
-          }
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm focus:border-pink-400 focus:outline-none focus:ring-2 focus:ring-pink-200"
-        >
-          <option value="">指定なし</option>
-          {AVERAGE_EARNING_OPTIONS.map((item) => (
             <option key={item.value} value={item.value}>
               {item.label}
             </option>

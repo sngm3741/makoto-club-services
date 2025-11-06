@@ -8,7 +8,6 @@ import { fetchReviews } from '@/lib/reviews';
 type ReviewsSearchParams = {
   prefecture?: string;
   category?: string;
-  avgEarning?: string;
   store?: string;
   page?: string;
   sort?: string;
@@ -28,12 +27,9 @@ export default async function ReviewsPage({
   const resolved = await searchParams;
 
   const page = parseNumber(resolved.page) || 1;
-  const avgEarning = resolved.avgEarning ? parseNumber(resolved.avgEarning) : undefined;
-
   const { items, total, limit } = await fetchReviews({
     prefecture: resolved.prefecture,
     category: resolved.category,
-    avgEarning,
     storeName: resolved.store,
     sort: resolved.sort,
     page,
@@ -52,7 +48,6 @@ export default async function ReviewsPage({
         redirectPath="/reviews"
         initialPrefecture={resolved.prefecture}
         initialCategory={resolved.category}
-        initialAvgEarning={avgEarning}
       />
 
       <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
@@ -84,7 +79,6 @@ export default async function ReviewsPage({
         searchParams={{
           prefecture: resolved.prefecture,
           category: resolved.category,
-          avgEarning,
           store: resolved.store,
           sort: resolved.sort,
         }}
@@ -105,7 +99,6 @@ const SortLink = ({
   const params = new URLSearchParams();
   if (searchParams.prefecture) params.set('prefecture', searchParams.prefecture);
   if (searchParams.category) params.set('category', searchParams.category);
-  if (searchParams.avgEarning) params.set('avgEarning', searchParams.avgEarning);
   if (searchParams.store) params.set('store', searchParams.store);
   if (value) {
     params.set('sort', value);
