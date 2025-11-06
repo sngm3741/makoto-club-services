@@ -1604,6 +1604,7 @@ func (s *server) reviewCreateHandler() http.HandlerFunc {
 type reviewQueryParams struct {
 	Prefecture    string
 	Category      string
+	CategoryRaw   string
 	StoreName     string
 	Sort          string
 	AvgEarning    int
@@ -1617,7 +1618,12 @@ func (s *server) collectReviews(ctx context.Context, params reviewQueryParams) (
 		"status": "approved",
 	}
 	if params.Category != "" {
-		filter["industryCode"] = params.Category
+		categories := []string{params.Category}
+		raw := strings.TrimSpace(params.CategoryRaw)
+		if raw != "" && !contains(categories, raw) {
+			categories = append(categories, raw)
+		}
+		filter["industryCode"] = bson.M{"$in": categories}
 	}
 	if params.HasAvgEarning {
 		filter["averageEarning"] = params.AvgEarning
@@ -1680,7 +1686,7 @@ func (s *server) collectReviews(ctx context.Context, params reviewQueryParams) (
 }
 
 func (s *server) buildReviewSummary(review reviewDocument, store storeDocument) reviewSummaryResponse {
-	category := strings.TrimSpace(review.IndustryCode)
+	category := canonicalIndustryCode(review.IndustryCode)
 	if category == "" && len(store.IndustryCodes) > 0 {
 		category = store.IndustryCodes[0]
 	}
@@ -1761,12 +1767,12 @@ func deriveDates(period string) (visited string, created string) {
 }
 
 func buildAdminReviewResponse(review reviewDocument, store storeDocument) adminReviewResponse {
-	category := strings.TrimSpace(review.IndustryCode)
+	category := canonicalIndustryCode(review.IndustryCode)
 	if category == "" && len(store.IndustryCodes) > 0 {
 		category = store.IndustryCodes[0]
 	}
 	if category == "" {
-		category = "delivery_health"
+		category = "デリヘル"
 	}
 
 	visitedAt, _ := deriveDates(review.Period)
@@ -2026,7 +2032,7 @@ func (s *server) adminReviewUpdateHandler() http.HandlerFunc {
 			storeUpdate["prefecture"] = strings.TrimSpace(*req.Prefecture)
 		}
 		if req.Category != nil {
-			category := strings.TrimSpace(*req.Category)
+			category := canonicalIndustryCode(*req.Category)
 			reviewUpdate["industryCode"] = category
 			if category != "" {
 				addIndustry = category
@@ -2531,11 +2537,13 @@ func (s *server) reviewListHandler() http.HandlerFunc {
 		defer cancel()
 
 		query := r.URL.Query()
+		categoryRaw := strings.TrimSpace(query.Get("category"))
 		params := reviewQueryParams{
-			Prefecture: strings.TrimSpace(query.Get("prefecture")),
-			Category:   canonicalIndustryCode(query.Get("category")),
-			StoreName:  strings.TrimSpace(query.Get("storeName")),
-			Sort:       strings.TrimSpace(query.Get("sort")),
+			Prefecture:  strings.TrimSpace(query.Get("prefecture")),
+			Category:    canonicalIndustryCode(categoryRaw),
+			CategoryRaw: categoryRaw,
+			StoreName:   strings.TrimSpace(query.Get("storeName")),
+			Sort:        strings.TrimSpace(query.Get("sort")),
 		}
 		params.AvgEarning, params.HasAvgEarning = parseInt(query.Get("avgEarning"))
 		params.Page, _ = parsePositiveInt(query.Get("page"), 1)
