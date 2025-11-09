@@ -48,5 +48,5 @@ jobs:
             echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "${{ secrets.GHCR_USER }}" --password-stdin
             cd backend
             docker network create infra-backend-network || true
-            docker compose pull $SERVICE_NAME
-            docker compose up -d --force-recreate $SERVICE_NAME
+            ENVIRONMENT=production GHCR_USER=${{ secrets.GHCR_USER }} docker compose pull $SERVICE_NAME
+            ENVIRONMENT=production GHCR_USER=${{ secrets.GHCR_USER }} docker compose up -d --force-recreate $SERVICE_NAME
