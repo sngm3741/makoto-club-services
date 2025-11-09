@@ -100,6 +100,10 @@ type storeDocument struct {
 	Name          string             `bson:"name"`
 	BranchName    string             `bson:"branchName,omitempty"`
 	Prefecture    string             `bson:"prefecture,omitempty"`
+	Area          string             `bson:"area,omitempty"`
+	Genre         string             `bson:"genre,omitempty"`
+	BusinessHours string             `bson:"businessHours,omitempty"`
+	PriceRange    string             `bson:"priceRange,omitempty"`
 	IndustryCodes []string           `bson:"industryCodes,omitempty"`
 	Stats         storeStatsDocument `bson:"stats"`
 	CreatedAt     *time.Time         `bson:"createdAt,omitempty"`
@@ -1064,6 +1068,10 @@ type adminStoreResponse struct {
 	Name           string     `json:"name"`
 	BranchName     string     `json:"branchName,omitempty"`
 	Prefecture     string     `json:"prefecture,omitempty"`
+	Area           string     `json:"area,omitempty"`
+	Genre          string     `json:"genre,omitempty"`
+	BusinessHours  string     `json:"businessHours,omitempty"`
+	PriceRange     string     `json:"priceRange,omitempty"`
 	IndustryCodes  []string   `json:"industryCodes,omitempty"`
 	ReviewCount    int        `json:"reviewCount"`
 	LastReviewedAt *time.Time `json:"lastReviewedAt,omitempty"`
@@ -2246,9 +2254,7 @@ func (s *server) adminStoreSearchHandler() http.HandlerFunc {
 			limit = 100
 		}
 
-		filters := []bson.M{
-			{"stats.reviewCount": bson.M{"$gt": 0}},
-		}
+		filters := make([]bson.M, 0)
 		if prefecture != "" {
 			filters = append(filters, bson.M{"prefecture": prefecture})
 		}
@@ -2269,7 +2275,7 @@ func (s *server) adminStoreSearchHandler() http.HandlerFunc {
 		filter := bson.M{}
 		if len(filters) == 1 {
 			filter = filters[0]
-		} else {
+		} else if len(filters) > 1 {
 			filter["$and"] = filters
 		}
 
@@ -2310,10 +2316,14 @@ func (s *server) adminStoreSearchHandler() http.HandlerFunc {
 }
 
 type adminStoreCreateRequest struct {
-	Name         string `json:"name"`
-	BranchName   string `json:"branchName"`
-	Prefecture   string `json:"prefecture"`
-	IndustryCode string `json:"industryCode"`
+	Name          string `json:"name"`
+	BranchName    string `json:"branchName"`
+	Prefecture    string `json:"prefecture"`
+	Area          string `json:"area"`
+	Genre         string `json:"genre"`
+	BusinessHours string `json:"businessHours"`
+	PriceRange    string `json:"priceRange"`
+	IndustryCode  string `json:"industryCode"`
 }
 
 type adminStoreCreateResponse struct {
@@ -2345,6 +2355,10 @@ func (s *server) adminStoreCreateHandler() http.HandlerFunc {
 			return
 		}
 		branch := strings.TrimSpace(req.BranchName)
+		area := strings.TrimSpace(req.Area)
+		genre := strings.TrimSpace(req.Genre)
+		businessHours := strings.TrimSpace(req.BusinessHours)
+		priceRange := strings.TrimSpace(req.PriceRange)
 
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
@@ -2388,6 +2402,29 @@ func (s *server) adminStoreCreateHandler() http.HandlerFunc {
 			}
 		}
 
+		fieldUpdates := bson.M{}
+		if area != "" && area != store.Area {
+			fieldUpdates["area"] = area
+		}
+		if genre != "" && genre != store.Genre {
+			fieldUpdates["genre"] = genre
+		}
+		if businessHours != "" && businessHours != store.BusinessHours {
+			fieldUpdates["businessHours"] = businessHours
+		}
+		if priceRange != "" && priceRange != store.PriceRange {
+			fieldUpdates["priceRange"] = priceRange
+		}
+
+		if len(fieldUpdates) > 0 {
+			fieldUpdates["updatedAt"] = time.Now().In(s.location)
+			if _, err := s.stores.UpdateByID(ctx, store.ID, bson.M{"$set": fieldUpdates}); err != nil {
+				s.logger.Printf("admin store create meta update failed id=%s err=%v", store.ID.Hex(), err)
+			} else {
+				store, _ = s.getStoreByID(ctx, store.ID)
+			}
+		}
+
 		response := adminStoreCreateResponse{
 			Store:   storeDocumentToAdminResponse(store),
 			Created: created,
@@ -2403,6 +2440,10 @@ func storeDocumentToAdminResponse(doc storeDocument) adminStoreResponse {
 		Name:           doc.Name,
 		BranchName:     strings.TrimSpace(doc.BranchName),
 		Prefecture:     doc.Prefecture,
+		Area:           doc.Area,
+		Genre:          doc.Genre,
+		BusinessHours:  doc.BusinessHours,
+		PriceRange:     doc.PriceRange,
 		IndustryCodes:  append([]string(nil), doc.IndustryCodes...),
 		ReviewCount:    doc.Stats.ReviewCount,
 		LastReviewedAt: doc.Stats.LastReviewedAt,

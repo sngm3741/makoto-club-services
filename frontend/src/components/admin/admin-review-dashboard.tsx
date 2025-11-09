@@ -86,7 +86,7 @@ export const AdminReviewDashboard = () => {
             審査状況で絞り込み、詳細ページから内容の確認・編集を行ってください。
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value as StatusOption)}
@@ -106,6 +106,12 @@ export const AdminReviewDashboard = () => {
           >
             再読み込み
           </button>
+          <Link
+            href="/admin/stores/new"
+            className="rounded-full border border-pink-200 px-4 py-2 text-sm font-semibold text-pink-600 hover:bg-pink-50"
+          >
+            店舗を登録
+          </Link>
         </div>
       </header>
 
