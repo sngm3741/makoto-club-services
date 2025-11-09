@@ -6,19 +6,12 @@ services:
       dockerfile: Dockerfile
     container_name: makoto-club-api
     env_file:
-      - ./.env
-    environment:
-      - VIRTUAL_HOST=${VIRTUAL_HOST}
-      - LETSENCRYPT_HOST=${LETSENCRYPT_HOST}
-      - LETSENCRYPT_EMAIL=${LETSENCRYPT_EMAIL}
-    ports:
-      - "8080:8080"
+      - ./env/shared.env
+      - ${ENVIRONMENT_FILE:-./env/production.env}
     networks:
-      - edge
+      - backend
     restart: unless-stopped
-    expose:
-      - "8080"
 networks:
-  edge:
+  backend:
     external: true
-    name: ${EDGE_NETWORK}
+    name: infra-backend-network

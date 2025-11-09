@@ -166,16 +166,16 @@ func main() {
 	router.Use(middleware.Recoverer)
 	router.Use(withCORS(cfg.allowedOrigins))
 
-	router.Get("/api/healthz", srv.healthHandler())
-	router.Get("/api/ping", srv.pingHandler())
-	router.Get("/api/stores", srv.storeListHandler())
-	router.Get("/api/reviews", srv.reviewListHandler())
-	router.Get("/api/reviews/new", srv.reviewLatestHandler())
-	router.Get("/api/reviews/high-rated", srv.reviewHighRatedHandler())
-	router.Get("/api/reviews/{id}", srv.reviewDetailHandler)
-	router.With(srv.authMiddleware).Post("/api/reviews", srv.reviewCreateHandler())
-	router.With(srv.authMiddleware).Get("/api/auth/verify", srv.authVerifyHandler())
-	router.Route("/api/admin", func(r chi.Router) {
+	router.Get("/healthz", srv.healthHandler())
+	router.Get("/ping", srv.pingHandler())
+	router.Get("/stores", srv.storeListHandler())
+	router.Get("/reviews", srv.reviewListHandler())
+	router.Get("/reviews/new", srv.reviewLatestHandler())
+	router.Get("/reviews/high-rated", srv.reviewHighRatedHandler())
+	router.Get("/reviews/{id}", srv.reviewDetailHandler)
+	router.With(srv.authMiddleware).Post("/reviews", srv.reviewCreateHandler())
+	router.With(srv.authMiddleware).Get("/auth/verify", srv.authVerifyHandler())
+	router.Route("/admin", func(r chi.Router) {
 		r.Get("/reviews", srv.adminReviewListHandler())
 		r.Get("/reviews/{id}", srv.adminReviewDetailHandler())
 		r.Patch("/reviews/{id}", srv.adminReviewUpdateHandler())
@@ -1454,7 +1454,7 @@ func (s *server) sendMessengerMessage(ctx context.Context, destination, userID, 
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	endpoint := s.messengerEndpoint + "/api/messages"
+	endpoint := s.messengerEndpoint + "/messages"
 	req, err := http.NewRequestWithContext(ctxWithTimeout, http.MethodPost, endpoint, bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("メッセンジャー送信リクエストの作成に失敗: %w", err)

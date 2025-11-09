@@ -1,0 +1,325 @@
+[
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f911"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f901"
+    },
+    "industryCode": "デリヘル",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-09-10T08:00:00Z"
+    },
+    "period": "2024-08",
+    "age": 23,
+    "specScore": 118,
+    "waitTimeHours": 4,
+    "averageEarning": 9,
+    "rating": 4.5,
+    "comment": "スタッフ対応が丁寧で働きやすかったです。",
+    "reward": {
+      "status": "paid",
+      "sentAt": {
+        "$date": "2024-09-11T03:00:00Z"
+      }
+    },
+    "reviewerId": "user001",
+    "reviewerName": "みか",
+    "reviewerUsername": "mika_tokyo",
+    "createdAt": {
+      "$date": "2024-09-10T08:00:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-09-11T03:00:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f912"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f901"
+    },
+    "industryCode": "デリヘル",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-08-25T05:00:00Z"
+    },
+    "period": "2024-07",
+    "age": 27,
+    "specScore": 110,
+    "waitTimeHours": 6,
+    "averageEarning": 8,
+    "rating": 4.0,
+    "comment": "客層は安定しているけど待機が少し長めでした。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user002",
+    "reviewerName": "あや",
+    "reviewerUsername": "aya_tokyo",
+    "createdAt": {
+      "$date": "2024-08-25T05:00:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-08-26T02:00:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f913"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f901"
+    },
+    "industryCode": "デリヘル",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-07-15T06:30:00Z"
+    },
+    "period": "2024-06",
+    "age": 25,
+    "specScore": 115,
+    "waitTimeHours": 5,
+    "averageEarning": 10,
+    "rating": 4.3,
+    "comment": "指名が安定して入り、稼ぎやすい店舗です。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user003",
+    "reviewerName": "りさ",
+    "reviewerUsername": "risa_smile",
+    "createdAt": {
+      "$date": "2024-07-15T06:30:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-07-16T01:00:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f914"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f902"
+    },
+    "industryCode": "ソープ",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-08-04T04:00:00Z"
+    },
+    "period": "2024-08",
+    "age": 29,
+    "specScore": 125,
+    "waitTimeHours": 5,
+    "averageEarning": 12,
+    "rating": 4.9,
+    "comment": "教育がしっかりしていて安心感があります。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user004",
+    "reviewerName": "なお",
+    "reviewerUsername": "nao_umeda",
+    "createdAt": {
+      "$date": "2024-08-04T04:00:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-08-04T07:00:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f915"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f902"
+    },
+    "industryCode": "ソープ",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-07-20T03:15:00Z"
+    },
+    "period": "2024-07",
+    "age": 31,
+    "specScore": 120,
+    "waitTimeHours": 7,
+    "averageEarning": 10,
+    "rating": 4.7,
+    "comment": "お客様単価が高めで短時間でも稼げました。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user005",
+    "reviewerName": "あかね",
+    "reviewerUsername": "akane_osaka",
+    "createdAt": {
+      "$date": "2024-07-20T03:15:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-07-21T02:20:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f916"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f903"
+    },
+    "industryCode": "ホテヘル",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-07-22T11:30:00Z"
+    },
+    "period": "2024-07",
+    "age": 24,
+    "specScore": 105,
+    "waitTimeHours": 3,
+    "averageEarning": 6,
+    "rating": 3.8,
+    "comment": "新人でも入りやすいが単価は少し低め。",
+    "reward": {
+      "status": "waiting"
+    },
+    "reviewerId": "user006",
+    "reviewerName": "せりな",
+    "reviewerUsername": "serina_yokohama",
+    "createdAt": {
+      "$date": "2024-07-22T11:30:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-07-22T12:00:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f917"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f903"
+    },
+    "industryCode": "ホテヘル",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-06-30T10:00:00Z"
+    },
+    "period": "2024-06",
+    "age": 28,
+    "specScore": 112,
+    "waitTimeHours": 5,
+    "averageEarning": 8,
+    "rating": 4.0,
+    "comment": "シフトの自由度が高く働きやすい。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user007",
+    "reviewerName": "ゆう",
+    "reviewerUsername": "yuu_kanagawa",
+    "createdAt": {
+      "$date": "2024-06-30T10:00:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-07-01T01:00:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f918"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f904"
+    },
+    "industryCode": "メンエス",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-09-02T08:00:00Z"
+    },
+    "period": "2024-08",
+    "age": 26,
+    "specScore": 108,
+    "waitTimeHours": 7,
+    "averageEarning": 8,
+    "rating": 4.4,
+    "comment": "リピーターが多く指名が安定しています。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user008",
+    "reviewerName": "もも",
+    "reviewerUsername": "momo_nagoya",
+    "createdAt": {
+      "$date": "2024-09-02T08:00:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-09-02T10:30:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f919"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f904"
+    },
+    "industryCode": "メンエス",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-07-18T07:00:00Z"
+    },
+    "period": "2024-07",
+    "age": 30,
+    "specScore": 115,
+    "waitTimeHours": 8,
+    "averageEarning": 8,
+    "rating": 4.0,
+    "comment": "待機は長いが、客単価は悪くない。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user009",
+    "reviewerName": "のぞみ",
+    "reviewerUsername": "nozomi_nagoya",
+    "createdAt": {
+      "$date": "2024-07-18T07:00:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-07-18T08:00:00Z"
+    }
+  },
+  {
+    "_id": {
+      "$oid": "65e0d34aa3f4b5c6d7e8f91a"
+    },
+    "storeId": {
+      "$oid": "65e0d1c7a3f4b5c6d7e8f905"
+    },
+    "industryCode": "箱ヘル",
+    "status": "approved",
+    "reviewedAt": {
+      "$date": "2024-08-18T10:45:00Z"
+    },
+    "period": "2024-08",
+    "age": 27,
+    "specScore": 120,
+    "waitTimeHours": 5,
+    "averageEarning": 10,
+    "rating": 4.6,
+    "comment": "観光客が多く、指名が途切れませんでした。",
+    "reward": {
+      "status": "paid"
+    },
+    "reviewerId": "user010",
+    "reviewerName": "さき",
+    "reviewerUsername": "saki_sapporo",
+    "createdAt": {
+      "$date": "2024-08-18T10:45:00Z"
+    },
+    "updatedAt": {
+      "$date": "2024-08-18T12:00:00Z"
+    }
+  }
+]

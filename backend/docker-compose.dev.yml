@@ -1,0 +1,39 @@
+services:
+  mongo:
+    image: mongo:6.0
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./mongo-data:/data/db
+    networks:
+      - backend
+
+  makoto-club-api:
+    env_file:
+      - ./env/shared.env
+      - ./env/local.env
+    depends_on:
+      - mongo
+
+  mongo-seed:
+    build:
+      context: ../scripts/discord-survey-collector
+      dockerfile: Dockerfile
+    command: ["python", "import_to_mongo.py"]
+    env_file:
+      - ../scripts/env/shared.env
+      - ../scripts/env/local.env
+    volumes:
+      - ../sample:/app/sample:ro
+    networks:
+      - backend
+    depends_on:
+      - mongo
+    profiles:
+      - seed
+
+networks:
+  backend:
+    external: true
+    name: infra-backend-network
