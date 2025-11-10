@@ -12,7 +12,7 @@ export default async function HomePage() {
       <section className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6 rounded-3xl bg-gradient-to-br from-pink-100 via-white to-white p-8 shadow-lg">
           <p className="inline-flex rounded-full bg-white/70 px-3 py-1 text-xs font-semibold text-pink-600">
-            風俗で働く女の子のための口コミメディア
+            風俗で働く女の子のためのアンケートメディア
           </p>
           <h1 className="text-3xl leading-snug font-semibold text-slate-900">
             リアルなアンケートで、
@@ -25,7 +25,7 @@ export default async function HomePage() {
           </p>
           <div className="flex flex-wrap gap-3 text-xs text-slate-500">
             <span className="rounded-full bg-white/90 px-3 py-1 font-medium">
-              500件以上のレビュー
+              500件以上のアンケート
             </span>
             <span className="rounded-full bg-white/90 px-3 py-1 font-medium">
               全国47都道府県対応
@@ -44,7 +44,7 @@ export default async function HomePage() {
 
       <section className="space-y-6">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-semibold text-slate-900">新着口コミ</h2>
+          <h2 className="text-xl font-semibold text-slate-900">新着アンケート</h2>
           <Link href="/reviews" className="text-sm font-semibold text-pink-600 hover:text-pink-500">
             もっと見る →
           </Link>
@@ -58,7 +58,7 @@ export default async function HomePage() {
 
       <section className="space-y-6">
         <div className="flex items-baseline justify-between">
-          <h2 className="text-xl font-semibold text-slate-900">高評価の口コミ</h2>
+          <h2 className="text-xl font-semibold text-slate-900">高評価のアンケート</h2>
           <Link
             href="/reviews?sort=helpful"
             className="text-sm font-semibold text-pink-600 hover:text-pink-500"

@@ -33,6 +33,7 @@ type FormValues = {
   averageEarning: number;
   comment: string;
   rating: number;
+  contactEmail: string;
 };
 
 const DEFAULT_FORM_VALUES: FormValues = {
@@ -47,6 +48,7 @@ const DEFAULT_FORM_VALUES: FormValues = {
   averageEarning: 0,
   comment: '',
   rating: 3,
+  contactEmail: '',
 };
 
 const TWITTER_AUTH_BASE_URL = process.env.NEXT_PUBLIC_TWITTER_AUTH_BASE_URL ?? '';
@@ -201,6 +203,7 @@ export const ReviewForm = () => {
         averageEarning: values.averageEarning,
         comment: values.comment.trim(),
         rating: values.rating,
+        contactEmail: values.contactEmail.trim(),
       };
 
       const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
@@ -438,6 +441,27 @@ export const ReviewForm = () => {
             {...register('comment')}
             className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:ring-2 focus:ring-pink-100 focus:outline-none"
           />
+        </Field>
+
+        <Field label="連絡用メールアドレス（任意）" error={errors.contactEmail?.message}>
+          <div className="space-y-1">
+            <input
+              id="contactEmail"
+              type="email"
+              placeholder="例: example@example.com"
+              {...register('contactEmail', {
+                validate: (value) => {
+                  const trimmed = value.trim();
+                  if (!trimmed) return true;
+                  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed) || '正しいメールアドレスを入力してください';
+                },
+              })}
+              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:ring-2 focus:ring-pink-100 focus:outline-none"
+            />
+            <p className="text-xs text-slate-500">
+              報酬連絡の控えとして利用します。入力がなくても投稿できます。
+            </p>
+          </div>
         </Field>
 
         <Field label="満足度" required error={errors.rating?.message}>

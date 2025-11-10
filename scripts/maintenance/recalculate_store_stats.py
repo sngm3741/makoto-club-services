@@ -10,8 +10,6 @@ stores コレクションに保存されている統計情報 (stats) を
   - stats.avgWaitTime
   - stats.lastReviewedAt
 
-計算対象となるレビューは status が "approved" のもののみ。
-
 実行例:
   MONGO_URI="mongodb+srv://..." \
   MONGO_DB="makoto-club" \
@@ -35,7 +33,7 @@ from pymongo.collection import Collection
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Recalculate store stats from approved reviews.")
+    parser = argparse.ArgumentParser(description="Recalculate store stats from all stored reviews.")
     parser.add_argument(
         "--apply",
         action="store_true",
@@ -66,11 +64,6 @@ def parse_args() -> argparse.Namespace:
 
 def fetch_review_stats(collection: Collection) -> Dict[ObjectId, Dict[str, object]]:
     pipeline = [
-        {
-            "$match": {
-                "status": "approved",
-            }
-        },
         {
             "$group": {
                 "_id": "$storeId",

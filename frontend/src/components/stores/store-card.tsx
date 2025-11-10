@@ -31,7 +31,7 @@ export const StoreCard = ({ store }: StoreCardProps) => {
       <div>
         <h3 className="text-lg font-semibold text-slate-900">{store.storeName}</h3>
         <p className="mt-1 text-sm text-slate-500">
-          レビュー件数: <strong className="font-semibold text-slate-700">{store.reviewCount}</strong>
+          アンケート件数: <strong className="font-semibold text-slate-700">{store.reviewCount}</strong>
         </p>
         <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
           <StarDisplay value={store.averageRating} />
@@ -53,10 +53,10 @@ export const StoreCard = ({ store }: StoreCardProps) => {
         </div>
       </dl>
       <Link
-        href={`/reviews?store=${encodeURIComponent(store.storeName)}`}
+        href={`/stores/${store.id}`}
         className="inline-flex w-fit items-center gap-1 text-sm font-semibold text-pink-600 hover:text-pink-500"
       >
-        この店舗のレビューを見る
+        この店舗の情報を見る
         <span aria-hidden>→</span>
       </Link>
     </article>

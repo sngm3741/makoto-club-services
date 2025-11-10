@@ -32,7 +32,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
       {review.excerpt ? (
         <p className="text-sm text-slate-600">{review.excerpt}</p>
       ) : (
-        <p className="text-sm text-slate-500">詳しいレビューは詳細ページでチェック！</p>
+        <p className="text-sm text-slate-500">詳しいアンケート内容は詳細ページでチェック！</p>
       )}
       <dl className="grid grid-cols-2 gap-3 text-xs text-slate-500">
         <div className="rounded-xl bg-slate-50 p-3">
@@ -56,7 +56,7 @@ export const ReviewCard = ({ review }: ReviewCardProps) => {
         href={`/reviews/${review.id}`}
         className="inline-flex w-fit items-center gap-1 text-sm font-semibold text-pink-600 hover:text-pink-500"
       >
-        レビュー詳細へ
+        詳細を見る
         <span aria-hidden>→</span>
       </Link>
     </article>

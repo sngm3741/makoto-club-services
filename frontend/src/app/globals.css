@@ -13,6 +13,7 @@
   --color-accent: var(--accent-pink);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-handwritten: 'Zen Maru Gothic', sans-serif;
 }
 
 body {

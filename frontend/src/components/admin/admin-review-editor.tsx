@@ -29,17 +29,8 @@ type AdminReview = {
   specScore: number;
   waitTimeHours: number;
   averageEarning: number;
-  status: string;
-  statusNote?: string;
-  reviewedBy?: string;
-  reviewedAt?: string;
   comment?: string;
-  rewardStatus: string;
-  rewardNote?: string;
-  rewardSentAt?: string;
-  reviewerId?: string;
-  reviewerName?: string;
-  reviewerHandle?: string;
+  contactEmail?: string;
   createdAt: string;
   updatedAt: string;
   rating: number;
@@ -54,18 +45,6 @@ type StoreCandidate = {
   reviewCount: number;
   lastReviewedAt?: string;
 };
-
-const STATUS_OPTIONS = [
-  { value: 'pending', label: '審査中' },
-  { value: 'approved', label: '掲載OK' },
-  { value: 'rejected', label: '掲載不可' },
-];
-
-const REWARD_STATUS_OPTIONS = [
-  { value: 'pending', label: '未処理' },
-  { value: 'ready', label: '送付準備中' },
-  { value: 'sent', label: '送付済み' },
-];
 
 function formatDate(value?: string) {
   if (!value) return '-';
@@ -133,16 +112,9 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
     averageEarning: String(initialReview.averageEarning),
     comment: initialReview.comment ?? '',
     rating: initialReview.rating.toString(),
-  });
-  const [statusForm, setStatusForm] = useState({
-    status: initialReview.status,
-    statusNote: initialReview.statusNote ?? '',
-    reviewedBy: initialReview.reviewedBy ?? '',
-    rewardStatus: initialReview.rewardStatus,
-    rewardNote: initialReview.rewardNote ?? '',
+    contactEmail: initialReview.contactEmail ?? '',
   });
   const [savingContent, setSavingContent] = useState(false);
-  const [savingStatus, setSavingStatus] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [storeCandidates, setStoreCandidates] = useState<StoreCandidate[]>([]);
@@ -170,17 +142,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
       averageEarning: String(review.averageEarning),
       comment: review.comment ?? '',
       rating: review.rating.toString(),
-    }),
-    [review],
-  );
-
-  const statusBaseline = useMemo(
-    () => ({
-      status: review.status,
-      statusNote: review.statusNote ?? '',
-      reviewedBy: review.reviewedBy ?? '',
-      rewardStatus: review.rewardStatus,
-      rewardNote: review.rewardNote ?? '',
+      contactEmail: review.contactEmail ?? '',
     }),
     [review],
   );
@@ -191,26 +153,10 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
       return formValue !== value;
     });
   }, [contentBaseline, form]);
-
-  const isStatusDirty = useMemo(() => {
-    return Object.entries(statusBaseline).some(([key, value]) => {
-      const formValue = statusForm[key as keyof typeof statusForm];
-      return formValue !== value;
-    });
-  }, [statusBaseline, statusForm]);
-
   const handleContentChange = useCallback(
     (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
       const { name, value } = event.target;
       setForm((prev) => ({ ...prev, [name]: value }));
-    },
-    [],
-  );
-
-  const handleStatusChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
-      const { name, value } = event.target;
-      setStatusForm((prev) => ({ ...prev, [name]: value }));
     },
     [],
   );
@@ -394,6 +340,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
           averageEarning: Number(form.averageEarning),
           comment: form.comment.trim(),
           rating: Number(form.rating),
+          contactEmail: form.contactEmail.trim(),
         };
 
         const response = await fetch(`${API_BASE}/api/admin/reviews/${review.id}`, {
@@ -428,6 +375,7 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
           averageEarning: String(updated.averageEarning),
           comment: updated.comment ?? '',
           rating: updated.rating.toString(),
+          contactEmail: updated.contactEmail ?? '',
         });
         setMessage('アンケート内容を更新しました');
       } catch (err) {
@@ -437,61 +385,6 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
       }
     },
     [form, review.id],
-  );
-
-  const handleStatusSave = useCallback(
-    async (event: FormEvent) => {
-      event.preventDefault();
-      if (!API_BASE) {
-        setError('API_BASE_URL が未設定です');
-        return;
-      }
-      setSavingStatus(true);
-      setMessage(null);
-      setError(null);
-      try {
-        const payload = {
-          status: statusForm.status,
-          statusNote: statusForm.statusNote,
-          reviewedBy: statusForm.reviewedBy,
-          rewardStatus: statusForm.rewardStatus,
-          rewardNote: statusForm.rewardNote,
-        };
-
-        const response = await fetch(`${API_BASE}/api/admin/reviews/${review.id}/status`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          const data = await response.json().catch(() => null);
-          const message =
-            data && typeof data === 'object' && data !== null && 'error' in data
-              ? (data as { error: string }).error
-              : `ステータスの更新に失敗しました (${response.status})`;
-          throw new Error(message);
-        }
-
-        const updated = (await response.json()) as AdminReview;
-        setReview(updated);
-        setStatusForm({
-          status: updated.status,
-          statusNote: updated.statusNote ?? '',
-          reviewedBy: updated.reviewedBy ?? '',
-          rewardStatus: updated.rewardStatus,
-          rewardNote: updated.rewardNote ?? '',
-        });
-        setMessage('ステータスを更新しました');
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'ステータスの更新に失敗しました');
-      } finally {
-        setSavingStatus(false);
-      }
-    },
-    [review.id, statusForm],
   );
 
   return (
@@ -819,6 +712,21 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
             </div>
           </label>
 
+          <label className="space-y-1 text-sm">
+            <span className="font-semibold text-slate-700">連絡先メール（任意）</span>
+            <input
+              type="email"
+              name="contactEmail"
+              value={form.contactEmail}
+              onChange={handleContentChange}
+              placeholder="example@example.com"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
+            />
+            <span className="text-xs text-slate-500">
+              報酬連絡用。空欄でも構いませんが、入力時は正しいメールアドレスを指定してください。
+            </span>
+          </label>
+
           <div className="flex justify-end">
             <button
               type="submit"
@@ -831,104 +739,27 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
         </form>
       </section>
 
-      <section className="space-y-4 rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
-        <header className="space-y-1">
-          <h2 className="text-lg font-semibold text-slate-900">ステータス・報酬管理</h2>
-          <p className="text-sm text-slate-500">審査メモや PayPay 送付状況を更新してください。</p>
-        </header>
-
-        <form className="grid gap-4" onSubmit={handleStatusSave}>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="space-y-1 text-sm">
-              <span className="font-semibold text-slate-700">審査ステータス</span>
-              <select
-                name="status"
-                value={statusForm.status}
-                onChange={handleStatusChange}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
-                required
-              >
-                {STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-semibold text-slate-700">審査担当</span>
-              <input
-                name="reviewedBy"
-                value={statusForm.reviewedBy}
-                onChange={handleStatusChange}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
-              />
-            </label>
-            <label className="space-y-1 text-sm sm:col-span-2">
-              <span className="font-semibold text-slate-700">審査メモ</span>
-              <textarea
-                name="statusNote"
-                value={statusForm.statusNote}
-                onChange={handleStatusChange}
-                rows={3}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
-              />
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-semibold text-slate-700">報酬ステータス</span>
-              <select
-                name="rewardStatus"
-                value={statusForm.rewardStatus}
-                onChange={handleStatusChange}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
-                required
-              >
-                {REWARD_STATUS_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-1 text-sm">
-              <span className="font-semibold text-slate-700">報酬メモ</span>
-              <textarea
-                name="rewardNote"
-                value={statusForm.rewardNote}
-                onChange={handleStatusChange}
-                rows={3}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-pink-400 focus:outline-none"
-              />
-            </label>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="rounded-full bg-pink-600 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-pink-500 disabled:opacity-60"
-              disabled={savingStatus || !isStatusDirty}
-            >
-              {savingStatus ? '更新中…' : 'ステータスを更新する'}
-            </button>
-          </div>
-        </form>
-      </section>
-
       <section className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
         <h2 className="text-lg font-semibold text-slate-900">メタ情報</h2>
         <dl className="mt-4 grid gap-2 text-sm text-slate-600">
           <div className="flex gap-3">
-            <dt className="w-32 font-semibold">投稿ID</dt>
-            <dd>{review.reviewerId ?? '—'}</dd>
+            <dt className="w-32 font-semibold">アンケートID</dt>
+            <dd className="break-all">{review.id}</dd>
           </div>
           <div className="flex gap-3">
-            <dt className="w-32 font-semibold">投稿者</dt>
-            <dd>
-              {review.reviewerHandle ? `@${review.reviewerHandle}` : review.reviewerName ?? '匿名'}
-            </dd>
+            <dt className="w-32 font-semibold">店舗ID</dt>
+            <dd className="break-all">{review.storeId}</dd>
           </div>
           <div className="flex gap-3">
-            <dt className="w-32 font-semibold">総評</dt>
+            <dt className="w-32 font-semibold">訪問時期</dt>
+            <dd>{review.visitedAt || '—'}</dd>
+          </div>
+          <div className="flex gap-3">
+            <dt className="w-32 font-semibold">連絡先メール</dt>
+            <dd>{review.contactEmail || '—'}</dd>
+          </div>
+          <div className="flex gap-3">
+            <dt className="w-32 font-semibold">評価</dt>
             <dd>{review.rating.toFixed(1)} / 5</dd>
           </div>
           <div className="flex gap-3">
@@ -938,14 +769,6 @@ export function AdminReviewEditor({ initialReview }: { initialReview: AdminRevie
           <div className="flex gap-3">
             <dt className="w-32 font-semibold">最終更新</dt>
             <dd>{formatDate(review.updatedAt)}</dd>
-          </div>
-          <div className="flex gap-3">
-            <dt className="w-32 font-semibold">審査日時</dt>
-            <dd>{formatDate(review.reviewedAt)}</dd>
-          </div>
-          <div className="flex gap-3">
-            <dt className="w-32 font-semibold">報酬送付日時</dt>
-            <dd>{formatDate(review.rewardSentAt)}</dd>
           </div>
         </dl>
       </section>

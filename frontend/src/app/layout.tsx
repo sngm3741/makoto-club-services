@@ -7,6 +7,7 @@ import { TwitterLoginHandler } from '@/components/twitter/twitter-login-handler'
 import { SITE_NAME } from '@/config/site';
 
 import './globals.css';
+import './fonts.css';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -20,19 +21,19 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: `${SITE_NAME} | 風俗口コミで働き先さがし`,
+    default: `${SITE_NAME} | 風俗アンケートで働き先さがし`,
     template: `%s | ${SITE_NAME}`,
   },
   description:
-    '全国の風俗で働く女の子のための口コミ検索サービス。実際のアンケート情報から安心して働ける店舗を探せます。',
+    '全国の風俗で働く女の子のためのアンケート検索サービス。実際の体験情報から安心して働ける店舗を探せます。',
   metadataBase:
     process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL
       ? new URL((process.env.NEXT_PUBLIC_SITE_URL || process.env.SITE_URL) as string)
       : undefined,
   openGraph: {
-    title: `${SITE_NAME} | 風俗口コミで働き先さがし`,
+    title: `${SITE_NAME} | 風俗アンケートで働き先さがし`,
     description:
-      '全国の風俗で働く女の子のための口コミ検索サービス。実際のアンケート情報から安心して働ける店舗を探せます。',
+      '全国の風俗で働く女の子のためのアンケート検索サービス。実際の体験情報から安心して働ける店舗を探せます。',
     type: 'website',
   },
 };

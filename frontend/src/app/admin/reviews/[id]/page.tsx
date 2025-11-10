@@ -5,11 +5,11 @@ import { AdminReviewEditor } from '@/components/admin/admin-review-editor';
 const API_BASE_URL = process.env.API_BASE_URL ?? process.env.NEXT_PUBLIC_API_BASE_URL ?? '';
 const LOG_PREFIX = '[admin/reviews/[id]]';
 
-const logInfo = (...args: any[]) => {
+const logInfo = (...args: unknown[]) => {
   console.log(LOG_PREFIX, ...args);
 };
 
-const logError = (...args: any[]) => {
+const logError = (...args: unknown[]) => {
   console.error(LOG_PREFIX, ...args);
 };
 
@@ -25,17 +25,8 @@ type AdminReview = {
   specScore: number;
   waitTimeHours: number;
   averageEarning: number;
-  status: string;
-  statusNote?: string;
-  reviewedBy?: string;
-  reviewedAt?: string;
   comment?: string;
-  rewardStatus: string;
-  rewardNote?: string;
-  rewardSentAt?: string;
-  reviewerId?: string;
-  reviewerName?: string;
-  reviewerHandle?: string;
+  contactEmail?: string;
   createdAt: string;
   updatedAt: string;
   rating: number;
@@ -70,15 +61,10 @@ async function fetchReview(id: string): Promise<AdminReview> {
   if (!response.ok) {
     const body = await response.text().catch(() => '<<failed to read body>>');
     logError('fetchReview failed', { id, requestUrl, status: response.status, body });
-    throw new Error('レビューの取得に失敗しました');
+    throw new Error('アンケートの取得に失敗しました');
   }
   const payload = (await response.json()) as AdminReview;
-  logInfo('fetchReview success', {
-    id,
-    status: payload.status,
-    rewardStatus: payload.rewardStatus,
-    reviewerId: payload.reviewerId,
-  });
+  logInfo('fetchReview success', { id });
   return payload;
 }
 

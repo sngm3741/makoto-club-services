@@ -13,6 +13,7 @@ type ReviewSearchParams = {
   prefecture?: string;
   category?: string;
   storeName?: string;
+  storeId?: string;
   sort?: string;
   page?: number;
   limit?: number;
@@ -39,7 +40,17 @@ function toSummary(review: ReviewDetail): ReviewSummary {
   };
 }
 
-function filterMockReviews({ prefecture, category, storeName }: ReviewSearchParams) {
+const decodeStoreIdentifier = (value?: string) => {
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
+function filterMockReviews({ prefecture, category, storeName, storeId }: ReviewSearchParams) {
+  const storeNameFilter = storeName || decodeStoreIdentifier(storeId);
   return MOCK_REVIEWS.filter((review) => {
     if (prefecture && review.prefecture !== prefecture) {
       return false;
@@ -47,7 +58,7 @@ function filterMockReviews({ prefecture, category, storeName }: ReviewSearchPara
     if (category && review.category !== category) {
       return false;
     }
-    if (storeName && !review.storeName.includes(storeName)) {
+    if (storeNameFilter && !review.storeName.includes(storeNameFilter)) {
       return false;
     }
     return true;
@@ -92,6 +103,7 @@ export async function fetchReviews(
   if (params.prefecture) url.searchParams.set('prefecture', params.prefecture);
   if (params.category) url.searchParams.set('category', params.category);
   if (params.storeName) url.searchParams.set('storeName', params.storeName);
+  if (params.storeId) url.searchParams.set('storeId', params.storeId);
   if (params.sort) url.searchParams.set('sort', params.sort);
   url.searchParams.set('page', String(page));
   url.searchParams.set('limit', String(limit));
@@ -101,7 +113,7 @@ export async function fetchReviews(
   });
 
   if (!response.ok) {
-    throw new Error('レビューの取得に失敗しました');
+    throw new Error('アンケートの取得に失敗しました');
   }
 
   const data = (await response.json()) as ReviewListResponse;
@@ -121,7 +133,7 @@ export async function fetchReviewById(id: string): Promise<ReviewDetail | null> 
     if (response.status === 404) {
       return null;
     }
-    throw new Error('レビュー詳細の取得に失敗しました');
+    throw new Error('アンケート詳細の取得に失敗しました');
   }
 
   return (await response.json()) as ReviewDetail;
@@ -148,7 +160,7 @@ export async function fetchFeaturedReviews() {
   ]);
 
   if (!latestResponse.ok || !highRatedResponse.ok) {
-    throw new Error('特集レビューの取得に失敗しました');
+    throw new Error('特集アンケートの取得に失敗しました');
   }
 
   return {

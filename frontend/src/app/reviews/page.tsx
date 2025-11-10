@@ -40,7 +40,7 @@ export default async function ReviewsPage({
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold text-slate-900">アンケート一覧</h1>
         <p className="text-sm text-slate-600">
-          実際に働いた女の子たちの体験談を、都道府県や業種で絞り込んで探せます。気になる店舗の詳細は各レビューページへ！
+          実際に働いた女の子たちのアンケートを、都道府県や業種で絞り込んで探せます。気になる店舗の詳細は各アンケートページでチェック！
         </p>
       </header>
 
@@ -60,7 +60,7 @@ export default async function ReviewsPage({
       <section className="space-y-4">
         {items.length === 0 ? (
           <p className="rounded-2xl bg-slate-100 px-4 py-6 text-sm text-slate-500">
-            条件に一致する口コミがまだありません。別の条件やエリアで探してみてください。
+            条件に一致するアンケートがまだありません。別の条件やエリアで探してみてください。
           </p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">

@@ -184,7 +184,7 @@ export function AdminStoreDashboard() {
                 <th className="px-4 py-3">エリア</th>
                 <th className="px-4 py-3">業種</th>
                 <th className="px-4 py-3">ジャンル</th>
-                <th className="px-4 py-3">レビュー数</th>
+                <th className="px-4 py-3">アンケート数</th>
                 <th className="px-4 py-3">最終更新</th>
                 <th className="px-4 py-3" />
               </tr>
@@ -207,13 +207,21 @@ export function AdminStoreDashboard() {
                   <td className="px-4 py-3 text-slate-700">{store.reviewCount}</td>
                   <td className="px-4 py-3 text-slate-700">{formatDate(store.lastReviewedAt)}</td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => setEditingStore(store)}
-                      className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
-                    >
-                      編集
-                    </button>
+                    <div className="flex flex-wrap justify-end gap-2">
+                      <Link
+                        href={`/admin/stores/${store.id}/reviews/new`}
+                        className="rounded-full border border-pink-200 px-3 py-1 text-xs font-semibold text-pink-600 hover:bg-pink-50"
+                      >
+                        アンケート追加
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => setEditingStore(store)}
+                        className="rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      >
+                        編集
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

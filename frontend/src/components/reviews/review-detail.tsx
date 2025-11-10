@@ -47,17 +47,25 @@ export const ReviewDetailContent = ({ review }: ReviewDetailProps) => {
         ) : null}
       </dl>
 
-      <section className="space-y-2">
-        <h2 className="text-lg font-semibold text-slate-800">レビュー本文</h2>
-        <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-          {review.description ??
-            '詳細な口コミは準備中です。バックエンドAPIが整備され次第、本文を掲載します。'}
-        </p>
+      <section className="">
+        <div className="rounded-2xl bg-slate-50 p-6">
+          <p
+            className="whitespace-pre-wrap text-[15px] leading-[1.9] text-slate-800 tracking-[0.01em]"
+            style={{
+              fontFamily: "var(--font-handwritten), 'Zen Maru Gothic', sans-serif",
+              backgroundImage:
+                'repeating-linear-gradient(to bottom, transparent, transparent calc(1.9em - 1px), rgba(203, 213, 225, 0.5) calc(1.9em - 1px), rgba(203, 213, 225, 0.5) 1.9em)',
+              backgroundPosition: '0 1.9em',
+              backgroundSize: '100% 1.9em',
+            }}
+          >
+            {review.description ?? ''}
+          </p>
+        </div>
       </section>
 
       <footer className="flex items-center justify-between text-xs text-slate-500">
         <p>投稿日: {formatDateTime(review.createdAt)}</p>
-        {review.authorDisplayName ? <p>投稿者: {review.authorDisplayName}</p> : null}
       </footer>
     </article>
   );

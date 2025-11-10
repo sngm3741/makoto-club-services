@@ -10,6 +10,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/mail"
 	"net/url"
 	"os"
 	"os/signal"
@@ -115,34 +116,21 @@ type reviewAttachmentDocument struct {
 	ContentType    string `bson:"contentType,omitempty"`
 }
 
-type reviewRewardDocument struct {
-	Status string     `bson:"status"`
-	SentAt *time.Time `bson:"sentAt,omitempty"`
-	Note   string     `bson:"note,omitempty"`
-}
-
 type reviewDocument struct {
-	ID               primitive.ObjectID         `bson:"_id"`
-	StoreID          primitive.ObjectID         `bson:"storeId"`
-	IndustryCode     string                     `bson:"industryCode"`
-	Status           string                     `bson:"status"`
-	StatusNote       string                     `bson:"statusNote,omitempty"`
-	ReviewedAt       *time.Time                 `bson:"reviewedAt,omitempty"`
-	ReviewedBy       string                     `bson:"reviewedBy,omitempty"`
-	Period           string                     `bson:"period,omitempty"`
-	Age              *int                       `bson:"age,omitempty"`
-	SpecScore        *int                       `bson:"specScore,omitempty"`
-	WaitTimeHours    *int                       `bson:"waitTimeHours,omitempty"`
-	AverageEarning   *int                       `bson:"averageEarning,omitempty"`
-	Rating           float64                    `bson:"rating"`
-	Comment          string                     `bson:"comment"`
-	Attachments      []reviewAttachmentDocument `bson:"attachments,omitempty"`
-	Reward           reviewRewardDocument       `bson:"reward"`
-	ReviewerID       string                     `bson:"reviewerId,omitempty"`
-	ReviewerName     string                     `bson:"reviewerName,omitempty"`
-	ReviewerUsername string                     `bson:"reviewerUsername,omitempty"`
-	CreatedAt        time.Time                  `bson:"createdAt"`
-	UpdatedAt        time.Time                  `bson:"updatedAt"`
+	ID             primitive.ObjectID         `bson:"_id"`
+	StoreID        primitive.ObjectID         `bson:"storeId"`
+	IndustryCode   string                     `bson:"industryCode"`
+	Period         string                     `bson:"period,omitempty"`
+	Age            *int                       `bson:"age,omitempty"`
+	SpecScore      *int                       `bson:"specScore,omitempty"`
+	WaitTimeHours  *int                       `bson:"waitTimeHours,omitempty"`
+	AverageEarning *int                       `bson:"averageEarning,omitempty"`
+	Rating         float64                    `bson:"rating"`
+	Comment        string                     `bson:"comment"`
+	ContactEmail   string                     `bson:"contactEmail,omitempty"`
+	Attachments    []reviewAttachmentDocument `bson:"attachments,omitempty"`
+	CreatedAt      time.Time                  `bson:"createdAt"`
+	UpdatedAt      time.Time                  `bson:"updatedAt"`
 }
 
 func main() {
@@ -173,6 +161,7 @@ func main() {
 	router.Get("/healthz", srv.healthHandler())
 	router.Get("/ping", srv.pingHandler())
 	router.Get("/stores", srv.storeListHandler())
+	router.Get("/stores/{id}", srv.storeDetailHandler())
 	router.Get("/reviews", srv.reviewListHandler())
 	router.Get("/reviews/new", srv.reviewLatestHandler())
 	router.Get("/reviews/high-rated", srv.reviewHighRatedHandler())
@@ -183,9 +172,10 @@ func main() {
 		r.Get("/reviews", srv.adminReviewListHandler())
 		r.Get("/reviews/{id}", srv.adminReviewDetailHandler())
 		r.Patch("/reviews/{id}", srv.adminReviewUpdateHandler())
-		r.Patch("/reviews/{id}/status", srv.adminReviewStatusHandler())
 		r.Get("/stores", srv.adminStoreSearchHandler())
+		r.Get("/stores/{id}", srv.adminStoreDetailHandler())
 		r.Post("/stores", srv.adminStoreCreateHandler())
+		r.Post("/stores/{id}/reviews", srv.adminStoreReviewCreateHandler())
 	})
 
 	httpServer := &http.Server{
@@ -525,7 +515,6 @@ func (s *server) recalculateStoreStats(ctx context.Context, storeID primitive.Ob
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{
 			"storeId": storeID,
-			"status":  "approved",
 		}}},
 		{{Key: "$group", Value: bson.M{
 			"_id":            nil,
@@ -899,6 +888,7 @@ func (s *server) storeListHandler() http.HandlerFunc {
 			summary := storeSummaryResponse{
 				ID:                  store.ID.Hex(),
 				StoreName:           store.Name,
+				BranchName:          strings.TrimSpace(store.BranchName),
 				Prefecture:          store.Prefecture,
 				Category:            category,
 				AverageRating:       avgRating,
@@ -940,6 +930,37 @@ func (s *server) storeListHandler() http.HandlerFunc {
 			Limit: limit,
 			Total: total,
 		})
+	}
+}
+
+func (s *server) storeDetailHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		idParam := strings.TrimSpace(chi.URLParam(r, "id"))
+		if idParam == "" {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDが指定されていません"})
+			return
+		}
+		objectID, err := primitive.ObjectIDFromHex(idParam)
+		if err != nil {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		store, err := s.getStoreByID(ctx, objectID)
+		if err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				s.writeJSON(w, http.StatusNotFound, map[string]string{"error": "店舗が見つかりません"})
+				return
+			}
+			s.logger.Printf("store detail fetch failed id=%q err=%v", idParam, err)
+			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
+			return
+		}
+
+		s.writeJSON(w, http.StatusOK, storeDocumentToDetailResponse(store))
 	}
 }
 
@@ -1032,31 +1053,22 @@ type reviewListResponse struct {
 }
 
 type adminReviewResponse struct {
-	ID             string     `json:"id"`
-	StoreID        string     `json:"storeId"`
-	StoreName      string     `json:"storeName"`
-	BranchName     string     `json:"branchName,omitempty"`
-	Prefecture     string     `json:"prefecture"`
-	Category       string     `json:"category"`
-	VisitedAt      string     `json:"visitedAt"`
-	Age            int        `json:"age"`
-	SpecScore      int        `json:"specScore"`
-	WaitTimeHours  int        `json:"waitTimeHours"`
-	AverageEarning int        `json:"averageEarning"`
-	Rating         float64    `json:"rating"`
-	Status         string     `json:"status"`
-	StatusNote     string     `json:"statusNote,omitempty"`
-	ReviewedBy     string     `json:"reviewedBy,omitempty"`
-	ReviewedAt     *time.Time `json:"reviewedAt,omitempty"`
-	Comment        string     `json:"comment,omitempty"`
-	RewardStatus   string     `json:"rewardStatus"`
-	RewardNote     string     `json:"rewardNote,omitempty"`
-	RewardSentAt   *time.Time `json:"rewardSentAt,omitempty"`
-	ReviewerID     string     `json:"reviewerId,omitempty"`
-	ReviewerName   string     `json:"reviewerName,omitempty"`
-	ReviewerHandle string     `json:"reviewerHandle,omitempty"`
-	CreatedAt      time.Time  `json:"createdAt"`
-	UpdatedAt      time.Time  `json:"updatedAt"`
+	ID             string    `json:"id"`
+	StoreID        string    `json:"storeId"`
+	StoreName      string    `json:"storeName"`
+	BranchName     string    `json:"branchName,omitempty"`
+	Prefecture     string    `json:"prefecture"`
+	Category       string    `json:"category"`
+	VisitedAt      string    `json:"visitedAt"`
+	Age            int       `json:"age"`
+	SpecScore      int       `json:"specScore"`
+	WaitTimeHours  int       `json:"waitTimeHours"`
+	AverageEarning int       `json:"averageEarning"`
+	Rating         float64   `json:"rating"`
+	Comment        string    `json:"comment,omitempty"`
+	ContactEmail   string    `json:"contactEmail,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 type adminReviewListResponse struct {
@@ -1089,6 +1101,7 @@ type createReviewRequest struct {
 	AverageEarning int     `json:"averageEarning"`
 	Comment        string  `json:"comment"`
 	Rating         float64 `json:"rating"`
+	ContactEmail   string  `json:"contactEmail,omitempty"`
 }
 
 type createReviewResponse struct {
@@ -1099,6 +1112,64 @@ type createReviewResponse struct {
 
 const maxReviewRequestBody = 1 << 20
 
+type reviewMetrics struct {
+	VisitedAt      string
+	Age            int
+	SpecScore      int
+	WaitTimeHours  int
+	AverageEarning int
+	Comment        string
+	Rating         float64
+	ContactEmail   string
+}
+
+func (m *reviewMetrics) normalize() error {
+	m.VisitedAt = strings.TrimSpace(m.VisitedAt)
+	if m.VisitedAt == "" {
+		return errors.New("働いた時期を指定してください")
+	}
+	if m.Age < 18 {
+		return errors.New("年齢は18歳以上で入力してください")
+	}
+	if m.Age > 60 {
+		m.Age = 60
+	}
+	if m.SpecScore < 60 {
+		return errors.New("スペックは60以上で入力してください")
+	}
+	if m.SpecScore > 140 {
+		m.SpecScore = 140
+	}
+	if m.WaitTimeHours < 1 {
+		return errors.New("待機時間は1時間以上で入力してください")
+	}
+	if m.WaitTimeHours > 24 {
+		m.WaitTimeHours = 24
+	}
+	if m.AverageEarning < 0 {
+		return errors.New("平均稼ぎは0以上で入力してください")
+	}
+	if m.AverageEarning > 20 {
+		m.AverageEarning = 20
+	}
+	if m.Rating < 0 || m.Rating > 5 {
+		return errors.New("総評は0〜5の範囲で入力してください")
+	}
+	m.Rating = math.Round(m.Rating*2) / 2
+	comment := strings.TrimSpace(m.Comment)
+	if len([]rune(comment)) > 2000 {
+		return errors.New("感想は2000文字以内で入力してください")
+	}
+	m.Comment = comment
+
+	email, err := normalizeEmail(m.ContactEmail)
+	if err != nil {
+		return err
+	}
+	m.ContactEmail = email
+	return nil
+}
+
 func (req *createReviewRequest) validate() error {
 	if strings.TrimSpace(req.StoreName) == "" {
 		return errors.New("店舗名は必須です")
@@ -1106,41 +1177,27 @@ func (req *createReviewRequest) validate() error {
 	if strings.TrimSpace(req.Prefecture) == "" {
 		return errors.New("都道府県は必須です")
 	}
-	if strings.TrimSpace(req.VisitedAt) == "" {
-		return errors.New("働いた時期を指定してください")
+	metrics := reviewMetrics{
+		VisitedAt:      req.VisitedAt,
+		Age:            req.Age,
+		SpecScore:      req.SpecScore,
+		WaitTimeHours:  req.WaitTimeHours,
+		AverageEarning: req.AverageEarning,
+		Comment:        req.Comment,
+		Rating:         req.Rating,
+		ContactEmail:   req.ContactEmail,
 	}
-	if req.Age < 18 {
-		return errors.New("年齢は18歳以上で入力してください")
+	if err := metrics.normalize(); err != nil {
+		return err
 	}
-	if req.Age > 60 {
-		req.Age = 60
-	}
-	if req.SpecScore < 60 {
-		return errors.New("スペックは60以上で入力してください")
-	}
-	if req.SpecScore > 140 {
-		req.SpecScore = 140
-	}
-	if req.WaitTimeHours < 1 {
-		return errors.New("待機時間は1時間以上で入力してください")
-	}
-	if req.WaitTimeHours > 24 {
-		req.WaitTimeHours = 24
-	}
-	if req.AverageEarning < 0 {
-		return errors.New("平均稼ぎは0以上で入力してください")
-	}
-	if req.AverageEarning > 20 {
-		req.AverageEarning = 20
-	}
-	if req.Rating < 0 || req.Rating > 5 {
-		return errors.New("総評は0〜5の範囲で入力してください")
-	}
-	req.Rating = math.Round(req.Rating*2) / 2
-	if comment := strings.TrimSpace(req.Comment); len([]rune(comment)) > 2000 {
-		return errors.New("感想は2000文字以内で入力してください")
-	}
-	req.Comment = strings.TrimSpace(req.Comment)
+	req.VisitedAt = metrics.VisitedAt
+	req.Age = metrics.Age
+	req.SpecScore = metrics.SpecScore
+	req.WaitTimeHours = metrics.WaitTimeHours
+	req.AverageEarning = metrics.AverageEarning
+	req.Comment = metrics.Comment
+	req.Rating = metrics.Rating
+	req.ContactEmail = metrics.ContactEmail
 	req.BranchName = strings.TrimSpace(req.BranchName)
 	return nil
 }
@@ -1181,6 +1238,7 @@ func formatVisitedDisplay(visited string) string {
 type storeSummaryResponse struct {
 	ID                  string  `json:"id"`
 	StoreName           string  `json:"storeName"`
+	BranchName          string  `json:"branchName,omitempty"`
 	Prefecture          string  `json:"prefecture"`
 	Category            string  `json:"category"`
 	AverageRating       float64 `json:"averageRating"`
@@ -1189,6 +1247,26 @@ type storeSummaryResponse struct {
 	WaitTimeHours       int     `json:"waitTimeHours"`
 	WaitTimeLabel       string  `json:"waitTimeLabel,omitempty"`
 	ReviewCount         int     `json:"reviewCount"`
+}
+
+type storeDetailResponse struct {
+	ID                  string     `json:"id"`
+	StoreName           string     `json:"storeName"`
+	BranchName          string     `json:"branchName,omitempty"`
+	Prefecture          string     `json:"prefecture,omitempty"`
+	Area                string     `json:"area,omitempty"`
+	Genre               string     `json:"genre,omitempty"`
+	BusinessHours       string     `json:"businessHours,omitempty"`
+	PriceRange          string     `json:"priceRange,omitempty"`
+	IndustryCodes       []string   `json:"industryCodes,omitempty"`
+	AverageRating       float64    `json:"averageRating"`
+	AverageEarning      int        `json:"averageEarning"`
+	AverageEarningLabel string     `json:"averageEarningLabel,omitempty"`
+	WaitTimeHours       int        `json:"waitTimeHours"`
+	WaitTimeLabel       string     `json:"waitTimeLabel,omitempty"`
+	ReviewCount         int        `json:"reviewCount"`
+	LastReviewedAt      *time.Time `json:"lastReviewedAt,omitempty"`
+	UpdatedAt           *time.Time `json:"updatedAt,omitempty"`
 }
 
 type storeListResponse struct {
@@ -1229,6 +1307,20 @@ func parseFirstNumber(input string) (float64, bool) {
 		return 0, false
 	}
 	return value, true
+}
+
+func normalizeEmail(value string) (string, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return "", nil
+	}
+	if len(trimmed) > 254 {
+		return "", errors.New("メールアドレスは254文字以内で入力してください")
+	}
+	if _, err := mail.ParseAddress(trimmed); err != nil {
+		return "", errors.New("メールアドレスの形式が正しくありません")
+	}
+	return trimmed, nil
 }
 
 func (s *server) notifyReviewReceipt(ctx context.Context, user authenticatedUser, summary reviewSummaryResponse, comment string) {
@@ -1547,24 +1639,20 @@ func (s *server) reviewCreateHandler() http.HandlerFunc {
 
 		reviewID := primitive.NewObjectID()
 		reviewDoc := reviewDocument{
-			ID:               reviewID,
-			StoreID:          store.ID,
-			IndustryCode:     category,
-			Status:           "pending",
-			Period:           period,
-			Age:              intPtr(req.Age),
-			SpecScore:        intPtr(req.SpecScore),
-			WaitTimeHours:    intPtr(req.WaitTimeHours),
-			AverageEarning:   intPtr(req.AverageEarning),
-			Rating:           req.Rating,
-			Comment:          comment,
-			Attachments:      []reviewAttachmentDocument{},
-			Reward:           reviewRewardDocument{Status: "pending"},
-			ReviewerID:       user.ID,
-			ReviewerName:     user.Name,
-			ReviewerUsername: user.Username,
-			CreatedAt:        now,
-			UpdatedAt:        now,
+			ID:             reviewID,
+			StoreID:        store.ID,
+			IndustryCode:   category,
+			Period:         period,
+			Age:            intPtr(req.Age),
+			SpecScore:      intPtr(req.SpecScore),
+			WaitTimeHours:  intPtr(req.WaitTimeHours),
+			AverageEarning: intPtr(req.AverageEarning),
+			Rating:         req.Rating,
+			Comment:        comment,
+			ContactEmail:   req.ContactEmail,
+			Attachments:    []reviewAttachmentDocument{},
+			CreatedAt:      now,
+			UpdatedAt:      now,
 		}
 
 		if _, err := s.reviews.InsertOne(ctx, reviewDoc); err != nil {
@@ -1607,14 +1695,16 @@ type reviewQueryParams struct {
 	Category    string
 	CategoryRaw string
 	StoreName   string
+	StoreID     primitive.ObjectID
 	Sort        string
 	Page        int
 	Limit       int
 }
 
 func (s *server) collectReviews(ctx context.Context, params reviewQueryParams) ([]reviewSummaryResponse, error) {
-	filter := bson.M{
-		"status": "approved",
+	filter := bson.M{}
+	if params.StoreID != primitive.NilObjectID {
+		filter["storeId"] = params.StoreID
 	}
 	if params.Category != "" {
 		categories := []string{params.Category}
@@ -1625,7 +1715,7 @@ func (s *server) collectReviews(ctx context.Context, params reviewQueryParams) (
 		filter["industryCode"] = bson.M{"$in": categories}
 	}
 
-	if params.Prefecture != "" || params.StoreName != "" {
+	if params.StoreID == primitive.NilObjectID && (params.Prefecture != "" || params.StoreName != "") {
 		storeIDs, err := s.findStoreIDs(ctx, params.Prefecture, params.StoreName)
 		if err != nil {
 			return nil, err
@@ -1733,14 +1823,10 @@ func (s *server) buildReviewDetail(review reviewDocument, store storeDocument) r
 	if description == "" {
 		description = buildFallbackDescription(summary)
 	}
-	displayName := strings.TrimSpace(review.ReviewerName)
-	if displayName == "" {
-		displayName = "匿名店舗アンケート"
-	}
 	detail := reviewDetailResponse{
 		reviewSummaryResponse: summary,
 		Description:           description,
-		AuthorDisplayName:     displayName,
+		AuthorDisplayName:     "匿名店舗アンケート",
 	}
 	return detail
 }
@@ -1773,16 +1859,6 @@ func buildAdminReviewResponse(review reviewDocument, store storeDocument) adminR
 
 	visitedAt, _ := deriveDates(review.Period)
 
-	status := strings.TrimSpace(review.Status)
-	if status == "" {
-		status = "pending"
-	}
-
-	rewardStatus := strings.TrimSpace(review.Reward.Status)
-	if rewardStatus == "" {
-		rewardStatus = "pending"
-	}
-
 	return adminReviewResponse{
 		ID:             review.ID.Hex(),
 		StoreID:        review.StoreID.Hex(),
@@ -1796,17 +1872,8 @@ func buildAdminReviewResponse(review reviewDocument, store storeDocument) adminR
 		WaitTimeHours:  intPtrValue(review.WaitTimeHours),
 		AverageEarning: intPtrValue(review.AverageEarning),
 		Rating:         review.Rating,
-		Status:         status,
-		StatusNote:     strings.TrimSpace(review.StatusNote),
-		ReviewedBy:     strings.TrimSpace(review.ReviewedBy),
-		ReviewedAt:     review.ReviewedAt,
 		Comment:        strings.TrimSpace(review.Comment),
-		RewardStatus:   rewardStatus,
-		RewardNote:     strings.TrimSpace(review.Reward.Note),
-		RewardSentAt:   review.Reward.SentAt,
-		ReviewerID:     strings.TrimSpace(review.ReviewerID),
-		ReviewerName:   strings.TrimSpace(review.ReviewerName),
-		ReviewerHandle: strings.TrimSpace(review.ReviewerUsername),
+		ContactEmail:   review.ContactEmail,
 		CreatedAt:      review.CreatedAt,
 		UpdatedAt:      review.UpdatedAt,
 	}
@@ -1818,14 +1885,6 @@ func deriveHelpfulCount(id primitive.ObjectID, spec int) int {
 		base = 5
 	}
 	return base % 40
-}
-
-type updateReviewStatusRequest struct {
-	Status       string `json:"status"`
-	StatusNote   string `json:"statusNote"`
-	ReviewedBy   string `json:"reviewedBy"`
-	RewardStatus string `json:"rewardStatus"`
-	RewardNote   string `json:"rewardNote"`
 }
 
 type updateReviewContentRequest struct {
@@ -1841,14 +1900,21 @@ type updateReviewContentRequest struct {
 	AverageEarning *int     `json:"averageEarning"`
 	Comment        *string  `json:"comment"`
 	Rating         *float64 `json:"rating"`
+	ContactEmail   *string  `json:"contactEmail"`
 }
 
 func (s *server) adminReviewListHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		status := strings.TrimSpace(r.URL.Query().Get("status"))
+		query := r.URL.Query()
+		storeIDParam := strings.TrimSpace(query.Get("storeId"))
 		filter := bson.M{}
-		if status != "" && status != "all" {
-			filter["status"] = status
+		if storeIDParam != "" {
+			storeID, err := primitive.ObjectIDFromHex(storeIDParam)
+			if err != nil {
+				s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
+				return
+			}
+			filter["storeId"] = storeID
 		}
 
 		opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
@@ -1905,7 +1971,7 @@ func (s *server) adminReviewListHandler() http.HandlerFunc {
 			items = append(items, buildAdminReviewResponse(review, store))
 		}
 
-		s.logger.Printf("admin review list: status=%q count=%d", status, len(items))
+		s.logger.Printf("admin review list: storeId=%q count=%d", storeIDParam, len(items))
 		s.writeJSON(w, http.StatusOK, adminReviewListResponse{Items: items})
 	}
 }
@@ -1941,7 +2007,7 @@ func (s *server) adminReviewDetailHandler() http.HandlerFunc {
 			return
 		}
 
-		s.logger.Printf("admin review detail success id=%q status=%q rewardStatus=%q", idParam, strings.TrimSpace(review.Status), strings.TrimSpace(review.Reward.Status))
+		s.logger.Printf("admin review detail success id=%q", idParam)
 
 		s.writeJSON(w, http.StatusOK, buildAdminReviewResponse(review, store))
 	}
@@ -2102,6 +2168,14 @@ func (s *server) adminReviewUpdateHandler() http.HandlerFunc {
 			}
 			reviewUpdate["rating"] = math.Round(rating*2) / 2
 		}
+		if req.ContactEmail != nil {
+			email, err := normalizeEmail(*req.ContactEmail)
+			if err != nil {
+				s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+				return
+			}
+			reviewUpdate["contactEmail"] = email
+		}
 
 		if len(storeUpdate) == 0 && len(reviewUpdate) == 0 && addIndustry == "" {
 			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "更新内容が指定されていません"})
@@ -2156,85 +2230,6 @@ func (s *server) adminReviewUpdateHandler() http.HandlerFunc {
 		}
 
 		s.logger.Printf("admin review content update success id=%q storeId=%s", idParam, updated.StoreID.Hex())
-
-		s.writeJSON(w, http.StatusOK, buildAdminReviewResponse(updated, store))
-	}
-}
-
-func (s *server) adminReviewStatusHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		idParam := strings.TrimSpace(chi.URLParam(r, "id"))
-		s.logger.Printf("admin review status update request id=%q", idParam)
-		objectID, err := primitive.ObjectIDFromHex(idParam)
-		if err != nil {
-			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "レビューIDの形式が不正です"})
-			return
-		}
-
-		var req updateReviewStatusRequest
-		if err := json.NewDecoder(io.LimitReader(r.Body, maxReviewRequestBody)).Decode(&req); err != nil {
-			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "リクエストの形式が不正です"})
-			return
-		}
-
-		update := bson.M{}
-		now := time.Now().In(s.location)
-
-		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
-		defer cancel()
-
-		if status := strings.TrimSpace(req.Status); status != "" {
-			update["status"] = status
-			update["statusNote"] = strings.TrimSpace(req.StatusNote)
-			update["reviewedBy"] = strings.TrimSpace(req.ReviewedBy)
-			if status == "approved" || status == "rejected" {
-				update["reviewedAt"] = now
-			} else {
-				update["reviewedAt"] = nil
-			}
-		}
-
-		if reward := strings.TrimSpace(req.RewardStatus); reward != "" {
-			update["reward.status"] = reward
-			update["reward.note"] = strings.TrimSpace(req.RewardNote)
-			if reward == "sent" {
-				update["reward.sentAt"] = now
-			} else {
-				update["reward.sentAt"] = nil
-			}
-		}
-
-		if len(update) == 0 {
-			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "更新内容が指定されていません"})
-			return
-		}
-
-		update["updatedAt"] = now
-
-		result := s.reviews.FindOneAndUpdate(ctx, bson.M{"_id": objectID}, bson.M{"$set": update}, options.FindOneAndUpdate().SetReturnDocument(options.After))
-		var updated reviewDocument
-		if err := result.Decode(&updated); err != nil {
-			if errors.Is(err, mongo.ErrNoDocuments) {
-				s.logger.Printf("admin review status update not found id=%q", idParam)
-				s.writeJSON(w, http.StatusNotFound, map[string]string{"error": "レビューが見つかりません"})
-				return
-			}
-			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "レビューの更新に失敗しました"})
-			return
-		}
-
-		if err := s.recalculateStoreStats(ctx, updated.StoreID); err != nil {
-			s.logger.Printf("admin review status update stats recalculation failed id=%q err=%v", idParam, err)
-		}
-
-		store, err := s.getStoreByID(ctx, updated.StoreID)
-		if err != nil {
-			s.logger.Printf("admin review status update store fetch failed id=%q storeId=%s err=%v", idParam, updated.StoreID.Hex(), err)
-			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
-			return
-		}
-
-		s.logger.Printf("admin review status update success id=%q status=%q rewardStatus=%q", idParam, strings.TrimSpace(updated.Status), strings.TrimSpace(updated.Reward.Status))
 
 		s.writeJSON(w, http.StatusOK, buildAdminReviewResponse(updated, store))
 	}
@@ -2315,6 +2310,37 @@ func (s *server) adminStoreSearchHandler() http.HandlerFunc {
 	}
 }
 
+func (s *server) adminStoreDetailHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		idParam := strings.TrimSpace(chi.URLParam(r, "id"))
+		if idParam == "" {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDが指定されていません"})
+			return
+		}
+		objectID, err := primitive.ObjectIDFromHex(idParam)
+		if err != nil {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		store, err := s.getStoreByID(ctx, objectID)
+		if err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				s.writeJSON(w, http.StatusNotFound, map[string]string{"error": "店舗が見つかりません"})
+				return
+			}
+			s.logger.Printf("admin store detail fetch failed id=%s err=%v", idParam, err)
+			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
+			return
+		}
+
+		s.writeJSON(w, http.StatusOK, storeDocumentToAdminResponse(store))
+	}
+}
+
 type adminStoreCreateRequest struct {
 	Name          string `json:"name"`
 	BranchName    string `json:"branchName"`
@@ -2329,6 +2355,18 @@ type adminStoreCreateRequest struct {
 type adminStoreCreateResponse struct {
 	Store   adminStoreResponse `json:"store"`
 	Created bool               `json:"created"`
+}
+
+type adminStoreReviewCreateRequest struct {
+	VisitedAt      string  `json:"visitedAt"`
+	Age            int     `json:"age"`
+	SpecScore      int     `json:"specScore"`
+	WaitTimeHours  int     `json:"waitTimeHours"`
+	AverageEarning int     `json:"averageEarning"`
+	Comment        string  `json:"comment"`
+	Rating         float64 `json:"rating"`
+	IndustryCode   string  `json:"industryCode"`
+	ContactEmail   string  `json:"contactEmail,omitempty"`
 }
 
 func (s *server) adminStoreCreateHandler() http.HandlerFunc {
@@ -2349,7 +2387,7 @@ func (s *server) adminStoreCreateHandler() http.HandlerFunc {
 			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "都道府県は必須です"})
 			return
 		}
-		industry := strings.TrimSpace(req.IndustryCode)
+		industry := canonicalIndustryCode(strings.TrimSpace(req.IndustryCode))
 		if industry == "" {
 			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "業種コードは必須です"})
 			return
@@ -2434,7 +2472,109 @@ func (s *server) adminStoreCreateHandler() http.HandlerFunc {
 	}
 }
 
+func (s *server) adminStoreReviewCreateHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		storeIDParam := strings.TrimSpace(chi.URLParam(r, "id"))
+		if storeIDParam == "" {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDが指定されていません"})
+			return
+		}
+		storeID, err := primitive.ObjectIDFromHex(storeIDParam)
+		if err != nil {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
+			return
+		}
+
+		var req adminStoreReviewCreateRequest
+		if err := json.NewDecoder(io.LimitReader(r.Body, maxReviewRequestBody)).Decode(&req); err != nil {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "リクエストの形式が不正です"})
+			return
+		}
+
+		metrics := reviewMetrics{
+			VisitedAt:      req.VisitedAt,
+			Age:            req.Age,
+			SpecScore:      req.SpecScore,
+			WaitTimeHours:  req.WaitTimeHours,
+			AverageEarning: req.AverageEarning,
+			Comment:        req.Comment,
+			Rating:         req.Rating,
+			ContactEmail:   req.ContactEmail,
+		}
+		if err := metrics.normalize(); err != nil {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		period, err := formatSurveyPeriod(metrics.VisitedAt)
+		if err != nil {
+			s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+
+		store, err := s.getStoreByID(ctx, storeID)
+		if err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				s.writeJSON(w, http.StatusNotFound, map[string]string{"error": "指定された店舗が見つかりません"})
+				return
+			}
+			s.logger.Printf("admin store review create store fetch failed id=%s err=%v", storeID.Hex(), err)
+			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
+			return
+		}
+
+		category := canonicalIndustryCode(req.IndustryCode)
+		if category == "" && len(store.IndustryCodes) > 0 {
+			category = canonicalIndustryCode(store.IndustryCodes[0])
+		}
+
+		now := time.Now().In(s.location)
+		reviewDoc := reviewDocument{
+			ID:             primitive.NewObjectID(),
+			StoreID:        storeID,
+			IndustryCode:   category,
+			Period:         period,
+			Age:            intPtr(metrics.Age),
+			SpecScore:      intPtr(metrics.SpecScore),
+			WaitTimeHours:  intPtr(metrics.WaitTimeHours),
+			AverageEarning: intPtr(metrics.AverageEarning),
+			Rating:         metrics.Rating,
+			Comment:        metrics.Comment,
+			ContactEmail:   metrics.ContactEmail,
+			Attachments:    []reviewAttachmentDocument{},
+			CreatedAt:      now,
+			UpdatedAt:      now,
+		}
+
+		if _, err := s.reviews.InsertOne(ctx, reviewDoc); err != nil {
+			s.logger.Printf("admin store review create insert failed storeId=%s err=%v", storeID.Hex(), err)
+			s.writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "レビューの保存に失敗しました"})
+			return
+		}
+
+		if category != "" && !containsString(store.IndustryCodes, category) {
+			if _, err := s.stores.UpdateByID(ctx, storeID, bson.M{"$addToSet": bson.M{"industryCodes": category}}); err != nil {
+				s.logger.Printf("admin store review create industry add failed storeId=%s err=%v", storeID.Hex(), err)
+			} else {
+				store, _ = s.getStoreByID(ctx, storeID)
+			}
+		}
+
+		if err := s.recalculateStoreStats(ctx, storeID); err != nil {
+			s.logger.Printf("admin store review create stats failed storeId=%s err=%v", storeID.Hex(), err)
+		} else if refreshed, err := s.getStoreByID(ctx, storeID); err == nil {
+			store = refreshed
+		}
+
+		s.writeJSON(w, http.StatusCreated, buildAdminReviewResponse(reviewDoc, store))
+	}
+}
+
 func storeDocumentToAdminResponse(doc storeDocument) adminStoreResponse {
+	industryCodes := canonicalIndustryCodes(doc.IndustryCodes)
 	return adminStoreResponse{
 		ID:             doc.ID.Hex(),
 		Name:           doc.Name,
@@ -2444,9 +2584,51 @@ func storeDocumentToAdminResponse(doc storeDocument) adminStoreResponse {
 		Genre:          doc.Genre,
 		BusinessHours:  doc.BusinessHours,
 		PriceRange:     doc.PriceRange,
-		IndustryCodes:  append([]string(nil), doc.IndustryCodes...),
+		IndustryCodes:  industryCodes,
 		ReviewCount:    doc.Stats.ReviewCount,
 		LastReviewedAt: doc.Stats.LastReviewedAt,
+	}
+}
+
+func storeDocumentToDetailResponse(doc storeDocument) storeDetailResponse {
+	industryCodes := canonicalIndustryCodes(doc.IndustryCodes)
+	avgRating := 0.0
+	if doc.Stats.AvgRating != nil {
+		avgRating = math.Round(*doc.Stats.AvgRating*10) / 10
+	}
+
+	avgEarning := 0
+	avgEarningLabel := "-"
+	if doc.Stats.AvgEarning != nil {
+		avgEarning = int(math.Round(*doc.Stats.AvgEarning))
+		avgEarningLabel = formatAverageEarningLabel(avgEarning)
+	}
+
+	waitHours := 0
+	waitLabel := "-"
+	if doc.Stats.AvgWaitTime != nil {
+		waitHours = int(math.Round(*doc.Stats.AvgWaitTime))
+		waitLabel = formatWaitTimeLabel(waitHours)
+	}
+
+	return storeDetailResponse{
+		ID:                  doc.ID.Hex(),
+		StoreName:           doc.Name,
+		BranchName:          strings.TrimSpace(doc.BranchName),
+		Prefecture:          doc.Prefecture,
+		Area:                doc.Area,
+		Genre:               doc.Genre,
+		BusinessHours:       doc.BusinessHours,
+		PriceRange:          doc.PriceRange,
+		IndustryCodes:       industryCodes,
+		AverageRating:       avgRating,
+		AverageEarning:      avgEarning,
+		AverageEarningLabel: avgEarningLabel,
+		WaitTimeHours:       waitHours,
+		WaitTimeLabel:       waitLabel,
+		ReviewCount:         doc.Stats.ReviewCount,
+		LastReviewedAt:      doc.Stats.LastReviewedAt,
+		UpdatedAt:           doc.UpdatedAt,
 	}
 }
 
@@ -2567,11 +2749,22 @@ func (s *server) reviewListHandler() http.HandlerFunc {
 
 		query := r.URL.Query()
 		categoryRaw := strings.TrimSpace(query.Get("category"))
+		storeIDParam := strings.TrimSpace(query.Get("storeId"))
+		var storeID primitive.ObjectID
+		if storeIDParam != "" {
+			objectID, err := primitive.ObjectIDFromHex(storeIDParam)
+			if err != nil {
+				s.writeJSON(w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
+				return
+			}
+			storeID = objectID
+		}
 		params := reviewQueryParams{
 			Prefecture:  strings.TrimSpace(query.Get("prefecture")),
 			Category:    canonicalIndustryCode(categoryRaw),
 			CategoryRaw: categoryRaw,
 			StoreName:   strings.TrimSpace(query.Get("storeName")),
+			StoreID:     storeID,
 			Sort:        strings.TrimSpace(query.Get("sort")),
 		}
 		params.Page, _ = parsePositiveInt(query.Get("page"), 1)

@@ -40,6 +40,7 @@ export interface ReviewListResponse {
 export interface StoreSummary {
   id: string;
   storeName: string;
+  branchName?: string;
   prefecture: string;
   category: ReviewCategory;
   averageRating: number;
@@ -48,4 +49,13 @@ export interface StoreSummary {
   waitTimeHours: number;
   waitTimeLabel?: string;
   reviewCount: number;
+}
+
+export interface StoreDetail extends StoreSummary {
+  area?: string;
+  genre?: string;
+  businessHours?: string;
+  priceRange?: string;
+  industryCodes?: string[];
+  lastReviewedAt?: string;
 }
