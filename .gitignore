@@ -1,0 +1,33 @@
+# General
+.DS_Store
+*.log
+*.tmp
+*.swp
+*.swo
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+*.a
+
+# Binaries
+backend/api/api
+backend/api/cmd/api/api
+backend/api/cmd/seed/seed
+
+# Build / tool caches
+**/.cache/
+.cache/
+
+# Coverage reports
+coverage/
+*.coverprofile
+
+# Editor configs
+.idea/
+.vscode/
