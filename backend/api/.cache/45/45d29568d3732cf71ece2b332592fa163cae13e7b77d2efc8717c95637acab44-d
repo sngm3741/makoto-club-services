@@ -1,0 +1,5 @@
+./auth.go
+./constants.go
+./numbers.go
+./response.go
+./taxonomy.go

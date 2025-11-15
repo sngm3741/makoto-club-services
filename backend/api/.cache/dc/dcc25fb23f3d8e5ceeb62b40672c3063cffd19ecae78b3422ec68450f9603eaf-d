@@ -1,0 +1,5 @@
+./admin_store_repository.go
+./documents.go
+./helpful_votes_repository.go
+./store_repository.go
+./survey_repository.go
