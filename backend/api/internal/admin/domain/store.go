@@ -8,19 +8,19 @@ type Store struct {
 	Name            string
 	BranchName      string
 	GroupName       string
-	Prefecture      string
+	Prefecture      Prefecture
 	Area            string
 	Genre           string
-	Industries      []string
-	EmploymentTypes []string
-	PricePerHour    int
+	Industries      IndustryList
+	EmploymentTypes EmploymentTypeList
+	PricePerHour    Money
 	PriceRange      string
-	AverageEarning  int
+	AverageEarning  Money
 	BusinessHours   string
-	Tags            []string
-	HomepageURL     string
+	Tags            TagList
+	HomepageURL     URL
 	SNS             SNSLinks
-	PhotoURLs       []string
+	PhotoURLs       PhotoURLList
 	Description     string
 	ReviewCount     int
 	LastReviewedAt  *time.Time
@@ -30,9 +30,39 @@ type Store struct {
 
 // SNSLinks mirrors the structured SNS URLs for admin context.
 type SNSLinks struct {
-	Twitter   string
-	Line      string
-	Instagram string
-	TikTok    string
-	Official  string
+	Twitter   URL
+	Line      URL
+	Instagram URL
+	TikTok    URL
+	Official  URL
+}
+
+func NewSNSLinks(twitter, line string, instagram, tiktok, official string) (SNSLinks, error) {
+	tw, err := NewURL(twitter)
+	if err != nil {
+		return SNSLinks{}, err
+	}
+	ln, err := NewURL(line)
+	if err != nil {
+		return SNSLinks{}, err
+	}
+	insta, err := NewURL(instagram)
+	if err != nil {
+		return SNSLinks{}, err
+	}
+	tk, err := NewURL(tiktok)
+	if err != nil {
+		return SNSLinks{}, err
+	}
+	of, err := NewURL(official)
+	if err != nil {
+		return SNSLinks{}, err
+	}
+	return SNSLinks{
+		Twitter:   tw,
+		Line:      ln,
+		Instagram: insta,
+		TikTok:    tk,
+		Official:  of,
+	}, nil
 }

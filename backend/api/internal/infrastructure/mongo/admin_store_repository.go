@@ -163,56 +163,46 @@ func (r *AdminStoreRepository) Update(ctx context.Context, store *admindomain.St
 }
 
 func mapAdminStore(doc StoreDocument) admindomain.Store {
-	industries := doc.Industries
-	employmentTypes := doc.EmploymentTypes
+	pref, _ := admindomain.NewPrefecture(doc.Prefecture)
+	industries, _ := admindomain.NewIndustryList(doc.Industries)
+	employment, _ := admindomain.NewEmploymentTypeList(doc.EmploymentTypes)
+	tags, _ := admindomain.NewTagList(doc.Tags)
+	homepage, _ := admindomain.NewURL(doc.HomepageURL)
+	photos, _ := admindomain.NewPhotoURLList(doc.PhotoURLs, 0)
+	price, _ := admindomain.NewMoney(doc.PricePerHour)
+	avg, _ := admindomain.NewMoney(doc.AverageEarning)
+	sns, _ := admindomain.NewSNSLinks(doc.SNS.Twitter, doc.SNS.Line, doc.SNS.Instagram, doc.SNS.TikTok, doc.SNS.Official)
 
-	store := admindomain.Store{
+	return admindomain.Store{
 		ID:              doc.ID.Hex(),
 		Name:            doc.Name,
 		BranchName:      strings.TrimSpace(doc.BranchName),
 		GroupName:       doc.GroupName,
-		Prefecture:      doc.Prefecture,
+		Prefecture:      pref,
 		Area:            doc.Area,
 		Genre:           doc.Genre,
 		BusinessHours:   doc.BusinessHours,
-		Industries:      append([]string{}, industries...),
-		EmploymentTypes: append([]string{}, employmentTypes...),
-		PricePerHour:    doc.PricePerHour,
+		Industries:      industries,
+		EmploymentTypes: employment,
+		PricePerHour:    price,
 		PriceRange:      doc.PriceRange,
-		AverageEarning:  doc.AverageEarning,
-		Tags:            append([]string{}, doc.Tags...),
-		HomepageURL:     doc.HomepageURL,
-		SNS:             mapAdminStoreSNS(doc.SNS),
-		PhotoURLs:       append([]string{}, doc.PhotoURLs...),
+		AverageEarning:  avg,
+		Tags:            tags,
+		HomepageURL:     homepage,
+		SNS:             sns,
+		PhotoURLs:       photos,
 		Description:     doc.Description,
 		ReviewCount:     doc.Stats.ReviewCount,
 		LastReviewedAt:  doc.Stats.LastReviewedAt,
-	}
-	if doc.CreatedAt != nil {
-		store.CreatedAt = *doc.CreatedAt
-	}
-	if doc.UpdatedAt != nil {
-		store.UpdatedAt = *doc.UpdatedAt
-	}
-	return store
-}
-
-func mapAdminStoreSNS(doc StoreSNSDocument) admindomain.SNSLinks {
-	return admindomain.SNSLinks{
-		Twitter:   doc.Twitter,
-		Line:      doc.Line,
-		Instagram: doc.Instagram,
-		TikTok:    doc.TikTok,
-		Official:  doc.Official,
 	}
 }
 
 func flattenAdminSNSLinks(links admindomain.SNSLinks) StoreSNSDocument {
 	return StoreSNSDocument{
-		Twitter:   strings.TrimSpace(links.Twitter),
-		Line:      strings.TrimSpace(links.Line),
-		Instagram: strings.TrimSpace(links.Instagram),
-		TikTok:    strings.TrimSpace(links.TikTok),
-		Official:  strings.TrimSpace(links.Official),
+		Twitter:   links.Twitter.String(),
+		Line:      links.Line.String(),
+		Instagram: links.Instagram.String(),
+		TikTok:    links.TikTok.String(),
+		Official:  links.Official.String(),
 	}
 }

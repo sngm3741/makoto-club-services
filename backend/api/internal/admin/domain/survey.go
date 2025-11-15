@@ -8,9 +8,9 @@ type Survey struct {
 	StoreID         string
 	StoreName       string
 	BranchName      string
-	Prefecture      string
+	Prefecture      Prefecture
 	Area            string
-	Industries      []string
+	Industries      IndustryList
 	Genre           string
 	Period          string
 	Age             *int
@@ -22,10 +22,10 @@ type Survey struct {
 	StaffNote       string
 	EnvironmentNote string
 	Comment         string
-	ContactEmail    string
-	Rating          float64
+	ContactEmail    Email
+	Rating          Rating
 	HelpfulCount    int
-	Tags            []string
+	Tags            TagList
 	Photos          []SurveyPhoto
 	CreatedAt       time.Time
 	UpdatedAt       time.Time
@@ -35,7 +35,7 @@ type Survey struct {
 type SurveyPhoto struct {
 	ID          string
 	StoredPath  string
-	PublicURL   string
+	PublicURL   PhotoURL
 	ContentType string
 	UploadedAt  time.Time
 }

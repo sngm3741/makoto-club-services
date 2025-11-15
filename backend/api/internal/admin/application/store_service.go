@@ -2,9 +2,13 @@ package application
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	admindomain "github.com/sngm3741/makoto-club-services/api/internal/admin/domain"
 )
+
+const maxStorePhotoCount = 10
 
 // storeService implements StoreService.
 type storeService struct {
@@ -24,30 +28,9 @@ func (s *storeService) Detail(ctx context.Context, id string) (*admindomain.Stor
 }
 
 func (s *storeService) Create(ctx context.Context, cmd UpsertStoreCommand) (*admindomain.Store, error) {
-	store := &admindomain.Store{
-		Name:            cmd.Name,
-		BranchName:      cmd.BranchName,
-		GroupName:       cmd.GroupName,
-		Prefecture:      cmd.Prefecture,
-		Area:            cmd.Area,
-		Genre:           cmd.Genre,
-		Industries:      append([]string{}, cmd.Industries...),
-		EmploymentTypes: append([]string{}, cmd.EmploymentTypes...),
-		PricePerHour:    cmd.PricePerHour,
-		PriceRange:      cmd.PriceRange,
-		AverageEarning:  cmd.AverageEarning,
-		BusinessHours:   cmd.BusinessHours,
-		Tags:            append([]string{}, cmd.Tags...),
-		HomepageURL:     cmd.HomepageURL,
-		SNS: admindomain.SNSLinks{
-			Twitter:   cmd.SNS.Twitter,
-			Line:      cmd.SNS.Line,
-			Instagram: cmd.SNS.Instagram,
-			TikTok:    cmd.SNS.TikTok,
-			Official:  cmd.SNS.Official,
-		},
-		PhotoURLs:   append([]string{}, cmd.PhotoURLs...),
-		Description: cmd.Description,
+	store, err := s.buildStore("", cmd)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.repo.Create(ctx, store); err != nil {
 		return nil, err
@@ -56,34 +39,76 @@ func (s *storeService) Create(ctx context.Context, cmd UpsertStoreCommand) (*adm
 }
 
 func (s *storeService) Update(ctx context.Context, id string, cmd UpsertStoreCommand) (*admindomain.Store, error) {
-	store := &admindomain.Store{
-		ID:              id,
-		Name:            cmd.Name,
-		BranchName:      cmd.BranchName,
-		GroupName:       cmd.GroupName,
-		Prefecture:      cmd.Prefecture,
-		Area:            cmd.Area,
-		Genre:           cmd.Genre,
-		Industries:      append([]string{}, cmd.Industries...),
-		EmploymentTypes: append([]string{}, cmd.EmploymentTypes...),
-		PricePerHour:    cmd.PricePerHour,
-		PriceRange:      cmd.PriceRange,
-		AverageEarning:  cmd.AverageEarning,
-		BusinessHours:   cmd.BusinessHours,
-		Tags:            append([]string{}, cmd.Tags...),
-		HomepageURL:     cmd.HomepageURL,
-		SNS: admindomain.SNSLinks{
-			Twitter:   cmd.SNS.Twitter,
-			Line:      cmd.SNS.Line,
-			Instagram: cmd.SNS.Instagram,
-			TikTok:    cmd.SNS.TikTok,
-			Official:  cmd.SNS.Official,
-		},
-		PhotoURLs:   append([]string{}, cmd.PhotoURLs...),
-		Description: cmd.Description,
+	store, err := s.buildStore(id, cmd)
+	if err != nil {
+		return nil, err
 	}
 	if err := s.repo.Update(ctx, store); err != nil {
 		return nil, err
 	}
 	return store, nil
+}
+
+func (s *storeService) buildStore(id string, cmd UpsertStoreCommand) (*admindomain.Store, error) {
+	name := strings.TrimSpace(cmd.Name)
+	if name == "" {
+		return nil, fmt.Errorf("store name is required")
+	}
+	pref, err := admindomain.NewPrefecture(cmd.Prefecture)
+	if err != nil {
+		return nil, err
+	}
+	industries, err := admindomain.NewIndustryList(cmd.Industries)
+	if err != nil {
+		return nil, err
+	}
+	employmentTypes, err := admindomain.NewEmploymentTypeList(cmd.EmploymentTypes)
+	if err != nil {
+		return nil, err
+	}
+	pricePerHour, err := admindomain.NewMoney(cmd.PricePerHour)
+	if err != nil {
+		return nil, err
+	}
+	avgEarning, err := admindomain.NewMoney(cmd.AverageEarning)
+	if err != nil {
+		return nil, err
+	}
+	tags, err := admindomain.NewTagList(cmd.Tags)
+	if err != nil {
+		return nil, err
+	}
+	homepage, err := admindomain.NewURL(cmd.HomepageURL)
+	if err != nil {
+		return nil, err
+	}
+	photos, err := admindomain.NewPhotoURLList(cmd.PhotoURLs, maxStorePhotoCount)
+	if err != nil {
+		return nil, err
+	}
+	sns, err := admindomain.NewSNSLinks(cmd.SNS.Twitter, cmd.SNS.Line, cmd.SNS.Instagram, cmd.SNS.TikTok, cmd.SNS.Official)
+	if err != nil {
+		return nil, err
+	}
+
+	return &admindomain.Store{
+		ID:              id,
+		Name:            name,
+		BranchName:      strings.TrimSpace(cmd.BranchName),
+		GroupName:       strings.TrimSpace(cmd.GroupName),
+		Prefecture:      pref,
+		Area:            strings.TrimSpace(cmd.Area),
+		Genre:           strings.TrimSpace(cmd.Genre),
+		Industries:      industries,
+		EmploymentTypes: employmentTypes,
+		PricePerHour:    pricePerHour,
+		PriceRange:      strings.TrimSpace(cmd.PriceRange),
+		AverageEarning:  avgEarning,
+		BusinessHours:   strings.TrimSpace(cmd.BusinessHours),
+		Tags:            tags,
+		HomepageURL:     homepage,
+		SNS:             sns,
+		PhotoURLs:       photos,
+		Description:     strings.TrimSpace(cmd.Description),
+	}, nil
 }
