@@ -78,6 +78,7 @@ type reviewMetrics struct {
 	ContactEmail   string
 }
 
+// normalize は投稿メトリクスにドメインルールを適用し、整合性を保つ。
 func (m *reviewMetrics) normalize() error {
 	m.VisitedAt = strings.TrimSpace(m.VisitedAt)
 	if m.VisitedAt == "" {
@@ -126,6 +127,7 @@ func (m *reviewMetrics) normalize() error {
 	return nil
 }
 
+// validate はユーザー入力の妥当性を検証し、Application サービスへ渡す前に整える。
 func (req *createReviewRequest) validate() error {
 	if strings.TrimSpace(req.StoreName) == "" {
 		return errors.New("店舗名は必須です")
@@ -164,6 +166,7 @@ func (req *createReviewRequest) validate() error {
 	return nil
 }
 
+// normalizeEmail はメールアドレス文字列を正規化し、形式をチェックする。
 func normalizeEmail(value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -178,6 +181,8 @@ func normalizeEmail(value string) (string, error) {
 	return trimmed, nil
 }
 
+// reviewCreateHandler は匿名アンケート投稿を受け付け、ドメインサービスへ委譲するエンドポイント。
+// Store 作成や通知などインフラ副作用もここで束ねる。
 func (h *Handler) reviewCreateHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := common.UserFromContext(r.Context())
@@ -308,6 +313,7 @@ func (h *Handler) reviewCreateHandler() http.HandlerFunc {
 	}
 }
 
+// formatSurveyPeriod は「働いた時期」の入力を `YYYY年MM月` フォーマットへ変換する。
 func formatSurveyPeriod(visited string) (string, error) {
 	value := strings.TrimSpace(visited)
 	if value == "" {
@@ -322,6 +328,7 @@ func formatSurveyPeriod(visited string) (string, error) {
 	return fmt.Sprintf("%d年%d月", t.Year(), int(t.Month())), nil
 }
 
+// normalizeReviewPhotos は写真情報を整形し、最大枚数制限をチェックする。
 func normalizeReviewPhotos(payloads []reviewPhotoPayload, max int) ([]domain.SurveyPhoto, error) {
 	if len(payloads) == 0 {
 		return nil, nil
@@ -354,6 +361,7 @@ func normalizeReviewPhotos(payloads []reviewPhotoPayload, max int) ([]domain.Sur
 	return result, nil
 }
 
+// findOrCreateStore は投稿に紐づく店舗を検索し、存在しなければ簡易に作成する。
 func (h *Handler) findOrCreateStore(ctx context.Context, name, branch, prefecture, category string) (mongodoc.StoreDocument, error) {
 	name = strings.TrimSpace(name)
 	branch = strings.TrimSpace(branch)
@@ -408,6 +416,7 @@ func (h *Handler) findOrCreateStore(ctx context.Context, name, branch, prefectur
 	return h.getStoreByID(ctx, newID)
 }
 
+// recalculateStoreStats は店舗に紐づくレビュー統計情報を再計算する。
 func (h *Handler) recalculateStoreStats(ctx context.Context, storeID primitive.ObjectID) error {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{
@@ -463,12 +472,14 @@ func (h *Handler) recalculateStoreStats(ctx context.Context, storeID primitive.O
 	return err
 }
 
+// getStoreByID は Mongo から店舗ドキュメントを取得するユーティリティ。
 func (h *Handler) getStoreByID(ctx context.Context, id primitive.ObjectID) (mongodoc.StoreDocument, error) {
 	var store mongodoc.StoreDocument
 	err := h.stores.FindOne(ctx, bson.M{"_id": id}).Decode(&store)
 	return store, err
 }
 
+// reviewHelpfulToggleHandler は役に立ったボタンのトグルAPI。
 func (h *Handler) reviewHelpfulToggleHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idParam := strings.TrimSpace(chi.URLParam(r, "id"))
@@ -526,6 +537,7 @@ func (h *Handler) reviewHelpfulToggleHandler() http.HandlerFunc {
 	}
 }
 
+// ensureHelpfulVoterID は署名付きCookieを検証し、不正なら再発行する。
 func (h *Handler) ensureHelpfulVoterID(w http.ResponseWriter, r *http.Request) (string, error) {
 	if len(h.helpfulCookieSecret) == 0 {
 		return "", errors.New("helpful voter secret not configured")
@@ -540,6 +552,7 @@ func (h *Handler) ensureHelpfulVoterID(w http.ResponseWriter, r *http.Request) (
 	return voterID, nil
 }
 
+// issueHelpfulCookie は Helpful 投票者識別用の Cookie を発行する。
 func (h *Handler) issueHelpfulCookie(w http.ResponseWriter, voterID string) {
 	value := h.signHelpfulCookie(voterID, time.Now().UTC())
 	http.SetCookie(w, &http.Cookie{
@@ -553,6 +566,7 @@ func (h *Handler) issueHelpfulCookie(w http.ResponseWriter, voterID string) {
 	})
 }
 
+// signHelpfulCookie は voterID と発行時刻を HMAC 署名する。
 func (h *Handler) signHelpfulCookie(voterID string, issuedAt time.Time) string {
 	payload := fmt.Sprintf("v=%s&ts=%d", voterID, issuedAt.Unix())
 	mac := hmac.New(sha256.New, h.helpfulCookieSecret)
@@ -561,6 +575,7 @@ func (h *Handler) signHelpfulCookie(voterID string, issuedAt time.Time) string {
 	return payload + "&sig=" + sig
 }
 
+// parseHelpfulCookie は Cookie の署名を検証し、期限切れかどうかを返す。
 func (h *Handler) parseHelpfulCookie(raw string) (string, time.Time, bool) {
 	parts := strings.Split(raw, "&")
 	if len(parts) < 3 {

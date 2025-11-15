@@ -1,6 +1,6 @@
 package domain
 
-// SurveySummary represents the public-facing summary view of a survey.
+// SurveySummary はトップページや一覧で使用するアンケートの簡易ビュー。
 type SurveySummary struct {
 	ID             string        `json:"id"`
 	StoreID        string        `json:"storeId"`
@@ -21,7 +21,7 @@ type SurveySummary struct {
 	Photos         []SurveyPhoto `json:"photos,omitempty"`
 }
 
-// SurveyDetail augments SurveySummary with long-form description metadata.
+// SurveyDetail は個別ページで必要となる詳細属性を SurveySummary に付け足したもの。
 type SurveyDetail struct {
 	SurveySummary
 	Description       string `json:"description"`

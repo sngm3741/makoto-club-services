@@ -11,6 +11,7 @@ import (
 	"github.com/sngm3741/makoto-club-services/api/internal/interfaces/http/common"
 )
 
+// adminSurveyDomainToResponse はドメインの Survey 集約を Admin UI 用レスポンスへ変換する。
 func adminSurveyDomainToResponse(survey admindomain.Survey) adminReviewResponse {
 	industryList := survey.Industries.Strings()
 	industries := common.CanonicalIndustryCodes(industryList)
@@ -54,6 +55,7 @@ func adminSurveyDomainToResponse(survey admindomain.Survey) adminReviewResponse 
 	}
 }
 
+// convertSurveyPhotosForAdminDomain は写真メタデータを Admin レスポンス形式へ変換する。
 func convertSurveyPhotosForAdminDomain(photos []admindomain.SurveyPhoto) []adminSurveyPhotoResponse {
 	if len(photos) == 0 {
 		return nil
@@ -71,6 +73,7 @@ func convertSurveyPhotosForAdminDomain(photos []admindomain.SurveyPhoto) []admin
 	return result
 }
 
+// deriveDates は期間文字列から訪問年月と日付を推測する。
 func deriveDates(period string) (visited string, created string) {
 	period = strings.TrimSpace(period)
 	if period == "" {
@@ -88,6 +91,7 @@ func deriveDates(period string) (visited string, created string) {
 	return t.Format("2006-01"), t.Format("2006-01-02")
 }
 
+// formatSurveyPeriod は Admin 入力フォーム用に訪問時期を標準化する。
 func formatSurveyPeriod(visited string) (string, error) {
 	value := strings.TrimSpace(visited)
 	if value == "" {
@@ -102,6 +106,7 @@ func formatSurveyPeriod(visited string) (string, error) {
 	return fmt.Sprintf("%d年%d月", t.Year(), int(t.Month())), nil
 }
 
+// normalizeEmail はメールアドレスをトリムし、形式を検証する。
 func normalizeEmail(value string) (string, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -116,6 +121,7 @@ func normalizeEmail(value string) (string, error) {
 	return trimmed, nil
 }
 
+// intPtrValue は nil セーフに int 値を取り出す。
 func intPtrValue(value *int) int {
 	if value == nil {
 		return 0

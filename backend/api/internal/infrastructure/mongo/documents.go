@@ -6,7 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// StoreStatsDocument mirrors the MongoDB embedded stats document.
+// StoreStatsDocument は店舗ドキュメント内の stats 埋め込み構造を表す。
 type StoreStatsDocument struct {
 	ReviewCount    int        `bson:"reviewCount"`
 	AvgRating      *float64   `bson:"avgRating,omitempty"`
@@ -15,7 +15,7 @@ type StoreStatsDocument struct {
 	LastReviewedAt *time.Time `bson:"lastReviewedAt,omitempty"`
 }
 
-// StoreDocument represents the MongoDB store schema.
+// StoreDocument は MongoDB 上での店舗スキーマを Go 構造体として表現したもの。
 type StoreDocument struct {
 	ID              primitive.ObjectID `bson:"_id"`
 	Name            string             `bson:"name"`
@@ -40,7 +40,7 @@ type StoreDocument struct {
 	UpdatedAt       *time.Time         `bson:"updatedAt,omitempty"`
 }
 
-// StoreSNSDocument stores structured SNS URLs.
+// StoreSNSDocument は SNS リンクを保持する埋め込みドキュメント。
 type StoreSNSDocument struct {
 	Twitter   string `bson:"twitter,omitempty"`
 	Line      string `bson:"line,omitempty"`
@@ -49,7 +49,7 @@ type StoreSNSDocument struct {
 	Official  string `bson:"official,omitempty"`
 }
 
-// ReviewDocument represents the MongoDB review/survey schema.
+// ReviewDocument は公開・管理いずれのユースケースでも利用するアンケート/レビューのスキーマを表現する。
 type ReviewDocument struct {
 	ID              primitive.ObjectID    `bson:"_id"`
 	StoreID         primitive.ObjectID    `bson:"storeId"`
@@ -78,7 +78,7 @@ type ReviewDocument struct {
 	UpdatedAt       time.Time             `bson:"updatedAt"`
 }
 
-// SurveyPhotoDocument stores survey photo metadata.
+// SurveyPhotoDocument はアンケート写真 1 枚分のメタデータを格納する埋め込みドキュメント。
 type SurveyPhotoDocument struct {
 	ID          string    `bson:"id"`
 	StoredPath  string    `bson:"storedPath"`

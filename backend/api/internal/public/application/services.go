@@ -8,12 +8,14 @@ import (
 )
 
 // StoreRepository abstracts read access to stores.
+// StoreRepository は Public コンテキストで店舗を読み取るためのポート。
 type StoreRepository interface {
 	Find(ctx context.Context, filter StoreFilter, paging Paging) ([]domain.Store, error)
 	FindByID(ctx context.Context, id string) (*domain.Store, error)
 }
 
 // SurveyRepository handles survey reads/writes.
+// SurveyRepository は Public コンテキストのアンケート読み取りを提供するポート。
 type SurveyRepository interface {
 	Find(ctx context.Context, filter SurveyFilter, paging Paging) ([]domain.Survey, error)
 	FindByID(ctx context.Context, id string) (*domain.Survey, error)
@@ -52,12 +54,14 @@ type Paging struct {
 }
 
 // StoreQueryService describes read use-cases.
+// StoreQueryService は店舗に関するユースケースを提供するリーダーモデル。
 type StoreQueryService interface {
 	List(ctx context.Context, filter StoreFilter, paging Paging) ([]domain.Store, error)
 	Detail(ctx context.Context, id string) (*domain.Store, error)
 }
 
 // SurveyQueryService describes survey read use-cases.
+// SurveyQueryService はアンケート参照ユースケースを提供するリーダーモデル。
 type SurveyQueryService interface {
 	List(ctx context.Context, filter SurveyFilter, paging Paging) ([]domain.Survey, error)
 	Detail(ctx context.Context, id string) (*domain.Survey, error)

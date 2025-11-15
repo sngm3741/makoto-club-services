@@ -14,17 +14,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// StoreRepository implements application.StoreRepository using MongoDB.
+// StoreRepository は MongoDB をデータソースにした Store 集約の実装リポジトリ。
 type StoreRepository struct {
 	collection *mongo.Collection
 }
 
-// NewStoreRepository creates a new Mongo-backed store repository.
+// NewStoreRepository は Mongo コレクションを束縛した StoreRepository を生成する。
 func NewStoreRepository(db *mongo.Database, collectionName string) *StoreRepository {
 	return &StoreRepository{collection: db.Collection(collectionName)}
 }
 
-// Find returns store summaries filtered and paginated according to the provided criteria.
+// Find はユビキタス言語の StoreFilter を Mongo クエリへ写し、並び替えを含む結果集合を返却する。
 func (r *StoreRepository) Find(ctx context.Context, filter application.StoreFilter, paging application.Paging) ([]domain.Store, error) {
 	mongoFilter := bson.M{
 		"stats.reviewCount": bson.M{"$gt": 0},
@@ -68,7 +68,7 @@ func (r *StoreRepository) Find(ctx context.Context, filter application.StoreFilt
 	return stores, nil
 }
 
-// FindByID returns a single store by its identifier.
+// FindByID は ObjectID 文字列から単一店舗を取得し、ドメインモデルへマッピングして返す。
 func (r *StoreRepository) FindByID(ctx context.Context, id string) (*domain.Store, error) {
 	objectID, err := primitive.ObjectIDFromHex(id)
 	if err != nil {
@@ -82,6 +82,7 @@ func (r *StoreRepository) FindByID(ctx context.Context, id string) (*domain.Stor
 	return &store, nil
 }
 
+// mapStoreDocument は Mongo の StoreDocument を domain.Store に変換する内部ヘルパー。
 func mapStoreDocument(doc StoreDocument) domain.Store {
 	createdAt := time.Time{}
 	if doc.CreatedAt != nil {
@@ -125,6 +126,7 @@ func mapStoreDocument(doc StoreDocument) domain.Store {
 	}
 }
 
+// mapSNSDocument は SNS ドキュメントを SNSLinks 値オブジェクトにまとめる。
 func mapSNSDocument(doc StoreSNSDocument) domain.SNSLinks {
 	return domain.SNSLinks{
 		Twitter:   doc.Twitter,
@@ -135,6 +137,7 @@ func mapSNSDocument(doc StoreSNSDocument) domain.SNSLinks {
 	}
 }
 
+// sortStores は UI のソートボタン仕様（新着・評価・稼ぎ）に沿って並び替える。
 func sortStores(stores []domain.Store, sortKey string) {
 	switch sortKey {
 	case "rating":
@@ -152,6 +155,7 @@ func sortStores(stores []domain.Store, sortKey string) {
 	}
 }
 
+// ptrFloat は nil セーフな平均値比較のため 1 桁で丸めた float を返す。
 func ptrFloat(v *float64) float64 {
 	if v == nil {
 		return 0

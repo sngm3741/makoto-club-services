@@ -7,21 +7,21 @@ import (
 	adminapp "github.com/sngm3741/makoto-club-services/api/internal/admin/application"
 )
 
-// Handler wires admin HTTP endpoints to application services.
+// Handler は Admin コンテキストの HTTP エンドポイントをアプリケーションサービスへ接続する。
 type Handler struct {
 	logger        *log.Logger
 	storeService  adminapp.StoreService
 	surveyService adminapp.SurveyService
 }
 
-// Config provides dependencies for Handler.
+// Config は Admin Handler を構築するための依存関係をまとめた値オブジェクト。
 type Config struct {
 	Logger        *log.Logger
 	StoreService  adminapp.StoreService
 	SurveyService adminapp.SurveyService
 }
 
-// NewHandler constructs an admin HTTP handler set.
+// NewHandler は Admin 用の Handler を生成する。
 func NewHandler(cfg Config) *Handler {
 	return &Handler{
 		logger:        cfg.Logger,
@@ -30,7 +30,7 @@ func NewHandler(cfg Config) *Handler {
 	}
 }
 
-// Register mounts admin routes onto router.
+// Register は Admin 向けルートを chi.Router に登録する。
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/reviews", h.reviewListHandler())
 	r.Get("/reviews/{id}", h.reviewDetailHandler())

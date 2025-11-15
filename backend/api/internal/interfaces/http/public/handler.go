@@ -10,7 +10,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// Handler wires public HTTP endpoints to application services.
+// Handler は Public コンテキストの HTTP エンドポイントをアプリケーションサービスへ接続する。
+// DDD の Interface 層として、外部プロトコルとユースケースを橋渡しする責務を担う。
 type Handler struct {
 	logger               *log.Logger
 	storeQueries         publicapp.StoreQueryService
@@ -30,7 +31,7 @@ type Handler struct {
 	failedNotifications  *mongo.Collection
 }
 
-// Config defines dependencies required by Handler.
+// Config は Handler を構築するための依存関係をまとめた値オブジェクト。
 type Config struct {
 	Logger               *log.Logger
 	StoreQueries         publicapp.StoreQueryService
@@ -50,7 +51,7 @@ type Config struct {
 	AdminReviewBaseURL   string
 }
 
-// NewHandler constructs a public HTTP handler set.
+// NewHandler は Public コンテキスト用の Handler を生成し、必要な依存を保持させる。
 func NewHandler(cfg Config) *Handler {
 	return &Handler{
 		logger:               cfg.Logger,
@@ -72,7 +73,7 @@ func NewHandler(cfg Config) *Handler {
 	}
 }
 
-// Register mounts all public routes onto the router.
+// Register は Public 向けのルートを chi.Router へ登録し、認証ミドルウェアなどを組み合わせる。
 func (h *Handler) Register(r chi.Router, authMiddleware func(http.Handler) http.Handler) {
 	r.Get("/stores", h.storeListHandler())
 	r.Get("/stores/{id}", h.storeDetailHandler())

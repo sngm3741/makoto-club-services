@@ -17,6 +17,7 @@ type reviewMetrics struct {
 	ContactEmail   string
 }
 
+// normalize は Admin 用入力の検証と補正を実施する。
 func (m *reviewMetrics) normalize() error {
 	m.VisitedAt = strings.TrimSpace(m.VisitedAt)
 	if m.VisitedAt == "" {

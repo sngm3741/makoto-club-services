@@ -10,23 +10,27 @@ import (
 
 const maxStorePhotoCount = 10
 
-// storeService implements StoreService.
+// storeService は Admin コンテキストの店舗ユースケースを実装する。
 type storeService struct {
 	repo StoreRepository
 }
 
+// NewStoreService は StoreService 実装を生成する。
 func NewStoreService(repo StoreRepository) StoreService {
 	return &storeService{repo: repo}
 }
 
+// List は検索条件とページングに従って店舗一覧を返す。
 func (s *storeService) List(ctx context.Context, filter StoreFilter, paging Paging) ([]admindomain.Store, error) {
 	return s.repo.Find(ctx, filter, paging)
 }
 
+// Detail は店舗IDに紐づく集約を取得する。
 func (s *storeService) Detail(ctx context.Context, id string) (*admindomain.Store, error) {
 	return s.repo.FindByID(ctx, id)
 }
 
+// Create は店舗を新規登録し、ドメインオブジェクトを返す。
 func (s *storeService) Create(ctx context.Context, cmd UpsertStoreCommand) (*admindomain.Store, error) {
 	store, err := s.buildStore("", cmd)
 	if err != nil {
@@ -38,6 +42,7 @@ func (s *storeService) Create(ctx context.Context, cmd UpsertStoreCommand) (*adm
 	return store, nil
 }
 
+// Update は既存店舗をコマンドの内容で更新する。
 func (s *storeService) Update(ctx context.Context, id string, cmd UpsertStoreCommand) (*admindomain.Store, error) {
 	store, err := s.buildStore(id, cmd)
 	if err != nil {
@@ -49,6 +54,7 @@ func (s *storeService) Update(ctx context.Context, id string, cmd UpsertStoreCom
 	return store, nil
 }
 
+// buildStore はコマンドからドメインの Store 集約を構築する。
 func (s *storeService) buildStore(id string, cmd UpsertStoreCommand) (*admindomain.Store, error) {
 	name := strings.TrimSpace(cmd.Name)
 	if name == "" {

@@ -14,10 +14,12 @@ import (
 
 var numberPattern = regexp.MustCompile(`\d+(?:\.\d+)?`)
 
+// formatWaitTimeLabel は待機時間（時間単位）をユーザー表示用の文字列へ変換する。
 func formatWaitTimeLabel(hours int) string {
 	return fmt.Sprintf("%d時間", hours)
 }
 
+// formatAverageEarningLabel は平均稼ぎ額をラベル表示へ変換する。
 func formatAverageEarningLabel(value int) string {
 	if value >= 20 {
 		return "20万円以上"
@@ -25,6 +27,7 @@ func formatAverageEarningLabel(value int) string {
 	return fmt.Sprintf("%d万円", value)
 }
 
+// formatVisitedDisplay は YYYY-MM 形式の訪問時期を日本語表記へ整形する。
 func formatVisitedDisplay(visited string) string {
 	t, err := time.Parse("2006-01", visited)
 	if err != nil {
@@ -33,6 +36,7 @@ func formatVisitedDisplay(visited string) string {
 	return fmt.Sprintf("%d年%d月", t.Year(), int(t.Month()))
 }
 
+// deriveDates は「2024年5月」のような文字列から訪問月と日付を導出する。
 func deriveDates(period string) (visited string, created string) {
 	period = strings.TrimSpace(period)
 	if period == "" {
@@ -50,6 +54,7 @@ func deriveDates(period string) (visited string, created string) {
 	return t.Format("2006-01"), t.Format("2006-01-02")
 }
 
+// deriveHelpfulCount は Seed 用に helpfulCount を擬似算出する。
 func deriveHelpfulCount(createdAt time.Time, spec int) int {
 	base := int(createdAt.Unix()%10) + spec
 	if base < 5 {
@@ -58,6 +63,7 @@ func deriveHelpfulCount(createdAt time.Time, spec int) int {
 	return base % 40
 }
 
+// buildReviewSummaryFromDomain はドメインモデルから Public 向けのサマリーDTOを構築する。
 func buildReviewSummaryFromDomain(survey publicdomain.Survey) reviewSummaryResponse {
 	industries := common.CanonicalIndustryCodes(survey.Industries)
 
@@ -106,6 +112,7 @@ func buildReviewSummaryFromDomain(survey publicdomain.Survey) reviewSummaryRespo
 	}
 }
 
+// buildReviewDetailFromDomain は詳細表示用のDTOを組み立てる。
 func buildReviewDetailFromDomain(survey publicdomain.Survey, authorName, authorAvatar string) reviewDetailResponse {
 	summary := buildReviewSummaryFromDomain(survey)
 	description := strings.TrimSpace(survey.Comment)
@@ -124,6 +131,7 @@ func buildReviewDetailFromDomain(survey publicdomain.Survey, authorName, authorA
 	}
 }
 
+// buildFallbackDescription はストア一覧用の説明文を組み立てるヘルパー。
 func buildFallbackDescription(summary reviewSummaryResponse) string {
 	return fmt.Sprintf(
 		"%sでの体験談です。平均稼ぎはおよそ%d万円、待機時間は%d時間程度でした。年代: %d歳、スペック: %d を参考にしてください。",
@@ -135,6 +143,7 @@ func buildFallbackDescription(summary reviewSummaryResponse) string {
 	)
 }
 
+// buildExcerpt はコメントから抜粋を作成し、ハイライトとして表示する。
 func buildExcerpt(comment, storeName string, earning any, wait any) string {
 	trimmed := strings.TrimSpace(comment)
 	if trimmed != "" {
@@ -158,6 +167,7 @@ func buildExcerpt(comment, storeName string, earning any, wait any) string {
 	return strings.Join(components, "／")
 }
 
+// extractFirstInt は interface{} から最初の整数値を取り出す。
 func extractFirstInt(value any) int {
 	switch v := value.(type) {
 	case *int:
@@ -203,6 +213,7 @@ func extractFirstInt(value any) int {
 	}
 }
 
+// reviewerDisplayName は匿名ユーザーの表示名を決定する。
 func reviewerDisplayName(user common.AuthenticatedUser) string {
 	name := strings.TrimSpace(user.Name)
 	if name != "" {

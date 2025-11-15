@@ -77,6 +77,7 @@ type storeSNSPayload struct {
 	Official  string `json:"official,omitempty"`
 }
 
+// buildStoreSummaryResponse は Store ドメインモデルを一覧表示用 DTO に変換する。
 func buildStoreSummaryResponse(store publicdomain.Store) storeSummaryResponse {
 	avgEarning := 0
 	avgEarningLabel := "-"
@@ -114,6 +115,7 @@ func buildStoreSummaryResponse(store publicdomain.Store) storeSummaryResponse {
 	}
 }
 
+// storeDomainToDetailResponse は Store ドメインモデルを詳細表示用 DTO に変換する。
 func storeDomainToDetailResponse(store publicdomain.Store) storeDetailResponse {
 	industries := common.CanonicalIndustryCodes(store.Industries)
 

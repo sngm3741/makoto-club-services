@@ -219,8 +219,10 @@ func (u URL) String() string {
 	return string(u)
 }
 
+// PhotoURL は写真の公開URLを表す。
 type PhotoURL string
 
+// NewPhotoURL は必須チェックと URL 形式の検証を行う。
 func NewPhotoURL(value string) (PhotoURL, error) {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
@@ -232,12 +234,15 @@ func NewPhotoURL(value string) (PhotoURL, error) {
 	return PhotoURL(trimmed), nil
 }
 
+// String は文字列表現を返す。
 func (u PhotoURL) String() string {
 	return string(u)
 }
 
+// PhotoURLList は写真URLの集合。
 type PhotoURLList []PhotoURL
 
+// NewPhotoURLList は最大枚数制限を考慮して PhotoURLList を生成する。
 func NewPhotoURLList(values []string, limit int) (PhotoURLList, error) {
 	if len(values) == 0 {
 		return nil, nil

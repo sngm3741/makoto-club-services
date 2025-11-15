@@ -16,15 +16,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// AdminStoreRepository implements application.StoreRepository.
+// AdminStoreRepository は管理者向け Store 集約の Mongo 実装。
 type AdminStoreRepository struct {
 	collection *mongo.Collection
 }
 
+// NewAdminStoreRepository は MongoDB コレクションを束縛した AdminStoreRepository を生成する。
 func NewAdminStoreRepository(db *mongo.Database, collection string) *AdminStoreRepository {
 	return &AdminStoreRepository{collection: db.Collection(collection)}
 }
 
+// Find は曖昧検索とページングをサポートした管理者用の店舗一覧を返す。
 func (r *AdminStoreRepository) Find(ctx context.Context, filter application.StoreFilter, paging application.Paging) ([]admindomain.Store, error) {
 	mongoFilter := bson.M{}
 	clauses := make([]bson.M, 0)
@@ -86,6 +88,7 @@ func (r *AdminStoreRepository) Find(ctx context.Context, filter application.Stor
 	return stores, nil
 }
 
+// FindByID は 16 進 ObjectID を受け取り単一店舗を VO 化して返す。
 func (r *AdminStoreRepository) FindByID(ctx context.Context, id string) (*admindomain.Store, error) {
 	objectID, err := primitive.ObjectIDFromHex(strings.TrimSpace(id))
 	if err != nil {
@@ -102,6 +105,7 @@ func (r *AdminStoreRepository) FindByID(ctx context.Context, id string) (*admind
 	return &store, nil
 }
 
+// Create は店舗名+支店名の重複チェックを行った上で Store を新規作成する。
 func (r *AdminStoreRepository) Create(ctx context.Context, store *admindomain.Store) error {
 	filter := bson.M{
 		"name":       strings.TrimSpace(store.Name),
@@ -123,6 +127,7 @@ func (r *AdminStoreRepository) Create(ctx context.Context, store *admindomain.St
 	return err
 }
 
+// Update は Store の ObjectID を用いて差し替えを行い、値オブジェクト経由で整形したデータのみを保存する。
 func (r *AdminStoreRepository) Update(ctx context.Context, store *admindomain.Store) error {
 	objectID, err := primitive.ObjectIDFromHex(strings.TrimSpace(store.ID))
 	if err != nil {
@@ -136,6 +141,7 @@ func (r *AdminStoreRepository) Update(ctx context.Context, store *admindomain.St
 	return err
 }
 
+// mapAdminStore は Mongo ドキュメントを Admin ドメインの Store に変換する。
 func mapAdminStore(doc StoreDocument) (admindomain.Store, error) {
 	pref, err := admindomain.NewPrefecture(doc.Prefecture)
 	if err != nil {
@@ -205,6 +211,7 @@ func mapAdminStore(doc StoreDocument) (admindomain.Store, error) {
 	return store, nil
 }
 
+// buildStoreDocument は Store の値オブジェクト群を Mongo 用 BSON に展開する。
 func buildStoreDocument(store *admindomain.Store, includeCreated bool) (bson.M, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store payload is nil")
@@ -236,6 +243,7 @@ func buildStoreDocument(store *admindomain.Store, includeCreated bool) (bson.M, 
 	return payload, nil
 }
 
+// flattenAdminSNSLinks は SNSLinks VO を Mongo の埋め込みドキュメントにフラット化する。
 func flattenAdminSNSLinks(links admindomain.SNSLinks) StoreSNSDocument {
 	return StoreSNSDocument{
 		Twitter:   links.Twitter.String(),

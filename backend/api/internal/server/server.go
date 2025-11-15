@@ -30,6 +30,8 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 )
 
+// Server は HTTP サーバーのライフサイクルを管理し、Public/Admin の各ハンドラへ依存注入するコンポジションルート。
+// DDD の Interface 層に相当し、アプリケーションサービスをルータへ接続する責務を担う。
 type Server struct {
 	logger               *log.Logger
 	client               *mongo.Client
@@ -52,7 +54,6 @@ type Server struct {
 	discordDestination   string
 	slackDestination     string
 	adminReviewBaseURL   string
-	mediaBaseURL         string
 	storeQueryService    publicapp.StoreQueryService
 	surveyQueryService   publicapp.SurveyQueryService
 	failedNotifications  *mongo.Collection
@@ -60,37 +61,10 @@ type Server struct {
 	allowedOrigins       []string
 }
 
-var jstLocation = time.FixedZone("JST", 9*60*60)
-
-const (
-	helpfulCookieName        = "mc_helpful_voter"
-	helpfulCookieTTL         = 180 * 24 * time.Hour
-	helpfulCookieMaxAge      = int(helpfulCookieTTL / time.Second)
-	maxStorePhotoCount       = 10
-	maxSurveyPhotoCount      = 10
-	maxStoreDescriptionRunes = 2000
-)
-
-var (
-	allowedStoreTags         = []string{"個室", "半個室", "裏", "講習無", "店泊可", "雑費無料"}
-	allowedEmploymentTypes   = []string{"出稼ぎ", "在籍"}
-	allowedStoreTagSet       = makeStringSet(allowedStoreTags)
-	allowedEmploymentTypeSet = makeStringSet(allowedEmploymentTypes)
-)
-
-func makeStringSet(items []string) map[string]struct{} {
-	set := make(map[string]struct{}, len(items))
-	for _, item := range items {
-		if strings.TrimSpace(item) == "" {
-			continue
-		}
-		set[item] = struct{}{}
-	}
-	return set
-}
-
 type authenticatedUser = commonhttp.AuthenticatedUser
 
+// Run はHTTPサーバーを起動し、Public/Adminのルーティングやミドルウェアを組み立てる。
+// インフラ初期化に限定し、ドメインロジックをここに書かないことで層の責務を守る。
 func (s *Server) Run() error {
 	if err := s.ensureSamplePing(context.Background()); err != nil {
 		s.logger.Printf("サンプル ping ドキュメントの用意に失敗しました: %v", err)
@@ -147,11 +121,13 @@ func (s *Server) Run() error {
 	return nil
 }
 
+// normaliseBaseURL は入力文字列をトリムして末尾スラッシュを削除したURLを返す。
 func normaliseBaseURL(input string) string {
 	trimmed := strings.TrimSpace(input)
 	return strings.TrimRight(trimmed, "/")
 }
 
+// withCORS は許可されたオリジン情報をもとに CORS ヘッダーを付与するミドルウェアを返す。
 func withCORS(origins []string) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{})
 	allowAll := false
@@ -195,13 +171,7 @@ func withCORS(origins []string) func(http.Handler) http.Handler {
 	}
 }
 
-func objectIDHex(id primitive.ObjectID) string {
-	if id.IsZero() {
-		return ""
-	}
-	return id.Hex()
-}
-
+// originAllowed は指定された Origin が許可リストに含まれるか判定する。
 func originAllowed(origin string, allowed map[string]struct{}) bool {
 	if len(allowed) == 0 {
 		return true
@@ -210,6 +180,8 @@ func originAllowed(origin string, allowed map[string]struct{}) bool {
 	return ok
 }
 
+// healthHandler は MongoDB への疎通確認を行い、監視系からのヘルスチェック要求に応える。
+// ドメインの状態ではなくインフラ状態のみを返す設計。
 func (s *Server) healthHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -230,6 +202,8 @@ func (s *Server) healthHandler() http.HandlerFunc {
 	}
 }
 
+// authMiddleware は Authorization ヘッダーから JWT を検証し、認証済みユーザーをコンテキストへ詰める。
+// Public/Admin 双方のルートで利用するため Server に集約している。
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := strings.TrimSpace(r.Header.Get("Authorization"))
@@ -268,10 +242,8 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-func authenticatedUserFromContext(ctx context.Context) (authenticatedUser, bool) {
-	return commonhttp.UserFromContext(ctx)
-}
-
+// parseAuthToken は複数の JWT 設定を順番に試し、署名検証と Issuer/Audience の整合性を確認する。
+// いずれの設定にも一致しない場合は認証エラーを返す。
 func (s *Server) parseAuthToken(tokenString string) (*authClaims, error) {
 	if len(s.jwtConfigs) == 0 {
 		return nil, fmt.Errorf("認証設定が構成されていません")
@@ -314,6 +286,7 @@ func (s *Server) parseAuthToken(tokenString string) (*authClaims, error) {
 	return nil, fmt.Errorf("アクセストークンが無効です")
 }
 
+// contains は Audience 等の検証で利用する単純な包含チェック。
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
@@ -336,6 +309,8 @@ type pingDocument struct {
 	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
 }
 
+// pingHandler は `pings` コレクションから最新レコードを返す検証用エンドポイント。
+// Seed されているか、アプリが Mongo にアクセスできるかを手軽に確認する用途。
 func (s *Server) pingHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -367,6 +342,8 @@ func (s *Server) pingHandler() http.HandlerFunc {
 	}
 }
 
+// ensureSamplePing は pings コレクションに最低1件のドキュメントがある状態を保証する。
+// ローカル環境でも /ping が 404 にならないよう起動時に呼び出す。
 func (s *Server) ensureSamplePing(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -386,6 +363,8 @@ func (s *Server) ensureSamplePing(ctx context.Context) error {
 	return err
 }
 
+// writeJSON は JSON レスポンスの共通書き込み処理。
+// Content-Type 設定とエラーログ出力を一元化して重複を避ける。
 func (s *Server) writeJSON(w http.ResponseWriter, status int, payload any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
@@ -394,6 +373,7 @@ func (s *Server) writeJSON(w http.ResponseWriter, status int, payload any) {
 	}
 }
 
+// shutdown は MongoDB クライアントをタイムアウト付きで切断し、プロセス終了時のリソースリークを防ぐ。
 func (s *Server) shutdown(ctx context.Context) {
 	shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
@@ -402,6 +382,8 @@ func (s *Server) shutdown(ctx context.Context) {
 	}
 }
 
+// waitForShutdown は ListenAndServe の終了と OS シグナルを監視し、graceful shutdown を実現する。
+// アプリケーションの外側で扱うべき OS 依存の関心事をここへ閉じ込める。
 func waitForShutdown(httpServer *http.Server, errChan <-chan error, srv *Server) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -423,6 +405,8 @@ func waitForShutdown(httpServer *http.Server, errChan <-chan error, srv *Server)
 	srv.shutdown(context.Background())
 }
 
+// New は Config と Mongo クライアントを受け取り、アプリケーションサービスとハンドラを組み立てた Server を返す。
+// 依存解決の起点となるファクトリとして機能する。
 func New(cfg config.Config, client *mongo.Client) *Server {
 	loc, err := time.LoadLocation(cfg.Timezone)
 	if err != nil {
@@ -450,7 +434,6 @@ func New(cfg config.Config, client *mongo.Client) *Server {
 		discordDestination:   cfg.DiscordDestination,
 		slackDestination:     strings.TrimSpace(cfg.SlackDestination),
 		adminReviewBaseURL:   cfg.AdminReviewBaseURL,
-		mediaBaseURL:         strings.TrimSuffix(strings.TrimSpace(cfg.MediaBaseURL), "/"),
 		addr:                 cfg.Addr,
 		allowedOrigins:       append([]string(nil), cfg.AllowedOrigins...),
 	}

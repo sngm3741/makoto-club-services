@@ -15,6 +15,8 @@ import (
 	publicapp "github.com/sngm3741/makoto-club-services/api/internal/public/application"
 )
 
+// storeListHandler は店舗検索フォームからのクエリに応じて一覧を返す。
+// DDD では Query Service を介して読み取り専用ユースケースを実現する。
 func (h *Handler) storeListHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -84,6 +86,8 @@ func (h *Handler) storeListHandler() http.HandlerFunc {
 	}
 }
 
+// storeDetailHandler は指定された店舗IDの詳細情報を返す。
+// 関連するレビューの有無などを含め、Query Service から取得したドメインモデルをJSONへ変換する。
 func (h *Handler) storeDetailHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

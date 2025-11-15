@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// Survey represents an approved, publicly visible survey.
+// Survey は公開済みアンケートの読み取りモデル。Store との結合済み情報を含む。
 type Survey struct {
 	ID              string
 	StoreID         string
@@ -31,7 +31,7 @@ type Survey struct {
 	UpdatedAt       time.Time
 }
 
-// SurveyPhoto keeps metadata of uploaded images.
+// SurveyPhoto はアンケートに紐づく画像メタデータ。
 type SurveyPhoto struct {
 	ID          string
 	StoredPath  string

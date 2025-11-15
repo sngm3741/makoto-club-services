@@ -7,13 +7,15 @@ import (
 	"time"
 )
 
-// JWTConfig defines issuer/secret pair for auth verification.
+// JWTConfig は JWT 認証で利用する発行者と秘密鍵の組を表す。
+// 境界づけられたコンテキストごとに異なる IdP を扱うため、複数エントリを想定する。
 type JWTConfig struct {
 	Issuer string
 	Secret []byte
 }
 
-// Config holds runtime configuration shared across the application.
+// Config は API 全体で利用する実行時設定の集合。
+// DDD では Infrastructure 層として、アプリケーション層へ環境依存を注入するための契約となる。
 type Config struct {
 	Addr                         string
 	MongoURI                     string
@@ -34,13 +36,13 @@ type Config struct {
 	MessengerTimeout             time.Duration
 	AdminReviewBaseURL           string
 	AllowedOrigins               []string
-	MediaBaseURL                 string
 	HelpfulCookieSecret          []byte
 	HelpfulCookieSecure          bool
 	FailedNotificationCollection string
 }
 
-// Load reads environment variables and returns a fully populated Config.
+// Load は環境変数を読み込んで Config を構築する。
+// 外部環境の差異を 1 箇所へ集約し、境界づけられたコンテキストが OS 依存を意識せずに済むようにする。
 func Load() Config {
 	timeout := 10 * time.Second
 	if v := os.Getenv("MONGO_CONNECT_TIMEOUT"); v != "" {
@@ -132,7 +134,6 @@ func Load() Config {
 		MessengerTimeout:             messengerTimeout,
 		AdminReviewBaseURL:           adminReviewBaseURL,
 		AllowedOrigins:               allowedOrigins,
-		MediaBaseURL:                 strings.TrimSpace(os.Getenv("MEDIA_BASE_URL")),
 		HelpfulCookieSecret:          []byte(helperSecret),
 		HelpfulCookieSecure:          helperCookieSecure,
 		FailedNotificationCollection: failedNotifications,
@@ -143,6 +144,8 @@ func Load() Config {
 	return cfg
 }
 
+// envOrDefault は環境変数が未設定の場合にフォールバック値を返すヘルパー。
+// Config.Load 内の重複したチェックを減らし、設定の意図を明確にする。
 func envOrDefault(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -150,6 +153,8 @@ func envOrDefault(key, fallback string) string {
 	return fallback
 }
 
+// parseList はカンマ区切りの環境変数を分割し、空要素を除外したスライスを返す。
+// API_ALLOWED_ORIGINS のような複数値設定で再利用する。
 func parseList(key string, fallback []string) []string {
 	raw := strings.TrimSpace(os.Getenv(key))
 	if raw == "" {

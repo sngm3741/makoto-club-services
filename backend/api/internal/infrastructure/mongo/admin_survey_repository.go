@@ -15,13 +15,13 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// AdminSurveyRepository provides Mongo-backed access for admin surveys.
+// AdminSurveyRepository は管理者向けアンケート集約を MongoDB 経由で扱うリポジトリ。
 type AdminSurveyRepository struct {
 	reviews *mongo.Collection
 	stores  *mongo.Collection
 }
 
-// NewAdminSurveyRepository constructs a repository instance.
+// NewAdminSurveyRepository はレビュー・店舗の 2 コレクションを束縛したリポジトリを生成する。
 func NewAdminSurveyRepository(db *mongo.Database, reviewCollection, storeCollection string) *AdminSurveyRepository {
 	return &AdminSurveyRepository{
 		reviews: db.Collection(reviewCollection),
@@ -29,6 +29,7 @@ func NewAdminSurveyRepository(db *mongo.Database, reviewCollection, storeCollect
 	}
 }
 
+// Find は Store ID/キーワード条件を Mongo クエリへ変換し、管理画面一覧を返す。
 func (r *AdminSurveyRepository) Find(ctx context.Context, filter adminapp.SurveyFilter, paging adminapp.Paging) ([]admindomain.Survey, error) {
 	mongoFilter := bson.M{}
 	if storeID := strings.TrimSpace(filter.StoreID); storeID != "" {
@@ -81,6 +82,7 @@ func (r *AdminSurveyRepository) Find(ctx context.Context, filter adminapp.Survey
 	return surveys, nil
 }
 
+// FindByID はアンケート ID を ObjectID 化して単一エンティティを復元する。
 func (r *AdminSurveyRepository) FindByID(ctx context.Context, id string) (*admindomain.Survey, error) {
 	objectID, err := primitive.ObjectIDFromHex(strings.TrimSpace(id))
 	if err != nil {
@@ -97,6 +99,7 @@ func (r *AdminSurveyRepository) FindByID(ctx context.Context, id string) (*admin
 	return &survey, nil
 }
 
+// Create はドメインアンケートを Mongo ドキュメントへ変換し、新規登録と店舗統計の再計算を行う。
 func (r *AdminSurveyRepository) Create(ctx context.Context, survey *admindomain.Survey) error {
 	if survey == nil {
 		return errors.New("survey payload is nil")
@@ -113,6 +116,7 @@ func (r *AdminSurveyRepository) Create(ctx context.Context, survey *admindomain.
 	return r.recalculateStoreStats(ctx, doc.StoreID)
 }
 
+// Update はアンケートの差し替え更新と統計再計算までを一括で担う。
 func (r *AdminSurveyRepository) Update(ctx context.Context, survey *admindomain.Survey) error {
 	if survey == nil {
 		return errors.New("survey payload is nil")
@@ -135,6 +139,7 @@ func (r *AdminSurveyRepository) Update(ctx context.Context, survey *admindomain.
 	return r.recalculateStoreStats(ctx, doc.StoreID)
 }
 
+// mapAdminSurveyDocument は Mongo レビュー文書を Admin ドメイン Survey へ変換する。
 func mapAdminSurveyDocument(doc ReviewDocument) (admindomain.Survey, error) {
 	pref, err := admindomain.NewPrefecture(doc.Prefecture)
 	if err != nil {
@@ -190,6 +195,7 @@ func mapAdminSurveyDocument(doc ReviewDocument) (admindomain.Survey, error) {
 	}, nil
 }
 
+// mapDomainSurveyToDocument はドメイン Survey を Mongo 保存形式に射影する。
 func mapDomainSurveyToDocument(survey *admindomain.Survey) (ReviewDocument, error) {
 	storeID, err := primitive.ObjectIDFromHex(strings.TrimSpace(survey.StoreID))
 	if err != nil {
@@ -237,6 +243,7 @@ func mapDomainSurveyToDocument(survey *admindomain.Survey) (ReviewDocument, erro
 	}, nil
 }
 
+// mapSurveyPhotoDocumentsToDomain は写真ドキュメントを SurveyPhoto に復元し、URL の妥当性も合わせて確認する。
 func mapSurveyPhotoDocumentsToDomain(docs []SurveyPhotoDocument) ([]admindomain.SurveyPhoto, error) {
 	if len(docs) == 0 {
 		return nil, nil
@@ -275,6 +282,7 @@ func mapSurveyPhotosToDocuments(photos []admindomain.SurveyPhoto) ([]SurveyPhoto
 	return result, nil
 }
 
+// buildSurveyUpdatePayload は ReviewDocument を $set 用の BSON マップに変換する。
 func buildSurveyUpdatePayload(doc ReviewDocument) bson.M {
 	payload := bson.M{
 		"storeId":         doc.StoreID,
@@ -304,6 +312,7 @@ func buildSurveyUpdatePayload(doc ReviewDocument) bson.M {
 	return payload
 }
 
+// recalculateStoreStats は対象店舗のアンケートを集計し、レビュー件数や平均値を Store に反映する。
 func (r *AdminSurveyRepository) recalculateStoreStats(ctx context.Context, storeID primitive.ObjectID) error {
 	pipeline := mongo.Pipeline{
 		{{Key: "$match", Value: bson.M{"storeId": storeID}}},

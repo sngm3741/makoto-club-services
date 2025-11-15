@@ -15,14 +15,14 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// SurveyRepository implements application.SurveyRepository backed by MongoDB.
+// SurveyRepository はパブリック向けアンケート集約を MongoDB で扱う実装リポジトリ。
 type SurveyRepository struct {
 	reviews *mongo.Collection
 	stores  *mongo.Collection
 	votes   *HelpfulVoteRepository
 }
 
-// NewSurveyRepository creates a SurveyRepository instance.
+// NewSurveyRepository はレビュー・店舗・Helpful 投票のコレクションを束縛したリポジトリを構築する。
 func NewSurveyRepository(db *mongo.Database, reviewCollection, storeCollection, helpfulCollection string) *SurveyRepository {
 	return &SurveyRepository{
 		reviews: db.Collection(reviewCollection),
@@ -31,7 +31,7 @@ func NewSurveyRepository(db *mongo.Database, reviewCollection, storeCollection, 
 	}
 }
 
-// Find fetches surveys based on filter criteria.
+// Find は Store/Pefecture/キーワード/タグの複合条件を Mongo クエリへ落とし込み、Store ドキュメントと突き合わせたアンケート一覧を返す。
 func (r *SurveyRepository) Find(ctx context.Context, filter application.SurveyFilter, paging application.Paging) ([]domain.Survey, error) {
 	mongoFilter := bson.M{}
 	andClauses := make([]bson.M, 0)
@@ -126,7 +126,7 @@ func (r *SurveyRepository) Find(ctx context.Context, filter application.SurveyFi
 	return surveys, nil
 }
 
-// FindByID fetches a single survey by its identifier.
+// FindByID はアンケート ID から単一レビューを取得し、関連店舗情報と合わせてドメイン Survey を返す。
 func (r *SurveyRepository) FindByID(ctx context.Context, id string) (*domain.Survey, error) {
 	objectID, err := primitive.ObjectIDFromHex(strings.TrimSpace(id))
 	if err != nil {
@@ -147,7 +147,7 @@ func (r *SurveyRepository) FindByID(ctx context.Context, id string) (*domain.Sur
 	return &survey, nil
 }
 
-// Create inserts a new survey document.
+// Create はアンケート投稿を Mongo に追加し、ドメインモデルへ採番結果を反映する。
 func (r *SurveyRepository) Create(ctx context.Context, survey *domain.Survey) error {
 	storeID, err := primitive.ObjectIDFromHex(strings.TrimSpace(survey.StoreID))
 	if err != nil {
@@ -209,7 +209,7 @@ func (r *SurveyRepository) Create(ctx context.Context, survey *domain.Survey) er
 	return nil
 }
 
-// IncrementHelpful toggles helpful counters.
+// IncrementHelpful は Helpful 投票のトグルを記録し、実際に変化があった場合のみカウンタを増減する。
 func (r *SurveyRepository) IncrementHelpful(ctx context.Context, surveyID, voterID string, inc bool) (int, error) {
 	surveyObjID, err := primitive.ObjectIDFromHex(strings.TrimSpace(surveyID))
 	if err != nil {
@@ -249,6 +249,7 @@ func (r *SurveyRepository) IncrementHelpful(ctx context.Context, surveyID, voter
 	return updated.HelpfulCount, nil
 }
 
+// lookupStoreIDs は店名/都道府県から Store ObjectID を逆引きする補助関数。
 func (r *SurveyRepository) lookupStoreIDs(ctx context.Context, prefecture, storeName string) ([]primitive.ObjectID, error) {
 	storeFilter := bson.M{}
 	if prefecture != "" {
@@ -277,6 +278,7 @@ func (r *SurveyRepository) lookupStoreIDs(ctx context.Context, prefecture, store
 	return ids, cursor.Err()
 }
 
+// loadStoreMap は ID 群を一括取得して StoreDocument のマップへ変換する。
 func (r *SurveyRepository) loadStoreMap(ctx context.Context, ids []primitive.ObjectID) (map[primitive.ObjectID]StoreDocument, error) {
 	result := make(map[primitive.ObjectID]StoreDocument, len(ids))
 	if len(ids) == 0 {
@@ -299,6 +301,7 @@ func (r *SurveyRepository) loadStoreMap(ctx context.Context, ids []primitive.Obj
 	return result, cursor.Err()
 }
 
+// mapSurveyDocument はレビュー＋店舗ドキュメントを統合し、公開ドメイン Survey へマッピングする。
 func mapSurveyDocument(review ReviewDocument, store StoreDocument) domain.Survey {
 	industries := review.Industries
 	if len(industries) == 0 {
@@ -378,6 +381,7 @@ func mapSurveyDocument(review ReviewDocument, store StoreDocument) domain.Survey
 	}
 }
 
+// mapSurveyPhotosFromDocs は Mongo 写真ドキュメントを公開 SurveyPhoto に復元する。
 func mapSurveyPhotosFromDocs(docs []SurveyPhotoDocument) []domain.SurveyPhoto {
 	if len(docs) == 0 {
 		return nil
@@ -395,6 +399,7 @@ func mapSurveyPhotosFromDocs(docs []SurveyPhotoDocument) []domain.SurveyPhoto {
 	return result
 }
 
+// mapSurveyPhotoDocuments は公開 SurveyPhoto を Mongo の SurveyPhotoDocument へ変換する。
 func mapSurveyPhotoDocuments(photos []domain.SurveyPhoto) []SurveyPhotoDocument {
 	if len(photos) == 0 {
 		return nil
@@ -412,6 +417,7 @@ func mapSurveyPhotoDocuments(photos []domain.SurveyPhoto) []SurveyPhotoDocument 
 	return result
 }
 
+// canonicalIndustryCode はユーザー入力を正規化して既知の業種ラベルに合わせる。
 func canonicalIndustryCode(input string) string {
 	trimmed := strings.TrimSpace(input)
 	if trimmed == "" {
@@ -444,6 +450,7 @@ func canonicalIndustryCode(input string) string {
 	return trimmed
 }
 
+// optionsFindIDProjection は _id のみの軽量クエリを作るためのヘルパー。
 func optionsFindIDProjection() *options.FindOptions {
 	opt := options.Find()
 	opt.SetProjection(bson.M{"_id": 1})

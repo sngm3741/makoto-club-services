@@ -10,16 +10,17 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
-// HelpfulVoteRepository persists survey helpful votes per voter.
+// HelpfulVoteRepository はアンケートの Helpful 投票状態を MongoDB で管理するリポジトリ。
 type HelpfulVoteRepository struct {
 	collection *mongo.Collection
 }
 
+// NewHelpfulVoteRepository は HelpfulVoteRepository を生成する Factory。
 func NewHelpfulVoteRepository(db *mongo.Database, collectionName string) *HelpfulVoteRepository {
 	return &HelpfulVoteRepository{collection: db.Collection(collectionName)}
 }
 
-// Upsert applies the desired vote state. Returns true if state changed.
+// Upsert は投票者単位で「役に立った」状態をトグルし、状態が変化したかどうかを返す。
 func (r *HelpfulVoteRepository) Upsert(ctx context.Context, surveyID, voterID primitive.ObjectID, desiredState bool) (bool, error) {
 	filter := bson.M{"surveyId": surveyID, "voterId": voterID}
 

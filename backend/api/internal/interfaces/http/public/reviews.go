@@ -25,6 +25,8 @@ type reviewQueryParams struct {
 	Limit      int
 }
 
+// reviewListHandler はユーザー向けのアンケート一覧 API。
+// DDD では Query Service を介して読み取り専用ユースケースを実現する。
 func (h *Handler) reviewListHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -76,6 +78,7 @@ func (h *Handler) reviewListHandler() http.HandlerFunc {
 	}
 }
 
+// reviewLatestHandler は最新アンケートを上限3件まで返す。
 func (h *Handler) reviewLatestHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -98,6 +101,7 @@ func (h *Handler) reviewLatestHandler() http.HandlerFunc {
 	}
 }
 
+// reviewHighRatedHandler は高評価順のアンケートを上限3件まで返す。
 func (h *Handler) reviewHighRatedHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -120,6 +124,8 @@ func (h *Handler) reviewHighRatedHandler() http.HandlerFunc {
 	}
 }
 
+// reviewDetailHandler はアンケートIDを指定して詳細情報を返す。
+// Store情報等を付与したDTOへ変換する責務も担う。
 func (h *Handler) reviewDetailHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
@@ -152,6 +158,7 @@ func (h *Handler) reviewDetailHandler() http.HandlerFunc {
 	}
 }
 
+// collectReviews は Query Service からアンケートを取得し、ハンドラ用の表示モデルへ整形する。
 func (h *Handler) collectReviews(ctx context.Context, params reviewQueryParams) ([]reviewSummaryResponse, error) {
 	filter := publicapp.SurveyFilter{
 		Prefecture: params.Prefecture,

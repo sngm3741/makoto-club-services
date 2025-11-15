@@ -2,7 +2,7 @@ package domain
 
 import "time"
 
-// Store represents a publicly visible store entity.
+// Store は一般公開向けに表示する店舗アグリゲートの読み取りモデル。
 type Store struct {
 	ID              string
 	Name            string
@@ -27,7 +27,7 @@ type Store struct {
 	UpdatedAt       time.Time
 }
 
-// SNSLinks defines structured SNS URLs for a store.
+// SNSLinks は店舗に紐づく SNS リンク群をまとめたサブ構造体。
 type SNSLinks struct {
 	Twitter   string
 	Line      string
@@ -36,7 +36,7 @@ type SNSLinks struct {
 	Official  string
 }
 
-// StoreStats aggregates review/earning metrics.
+// StoreStats はアンケートから算出された統計情報をまとめるビュー専用構造体。
 type StoreStats struct {
 	ReviewCount    int
 	AvgRating      *float64

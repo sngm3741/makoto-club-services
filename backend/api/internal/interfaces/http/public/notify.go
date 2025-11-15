@@ -15,6 +15,8 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 )
 
+// notifyReviewReceipt は投稿完了後にユーザーと管理者へ通知を送る。
+// DDD の Application 層から Infrastructure への橋渡しとして、副作用を一か所にまとめている。
 func (h *Handler) notifyReviewReceipt(ctx context.Context, user common.AuthenticatedUser, summary reviewSummaryResponse, comment string) {
 	if ctx == nil {
 		ctx = context.Background()
@@ -30,6 +32,7 @@ func (h *Handler) notifyReviewReceipt(ctx context.Context, user common.Authentic
 	h.notifyAdminChannels(ctx, user, summary, comment)
 }
 
+// buildReceiptMessage は投稿者へ返す受領メッセージをMarkdown風に整形する。
 func buildReceiptMessage(summary reviewSummaryResponse, comment string) string {
 	sections := [][]string{}
 
@@ -67,6 +70,7 @@ func buildReceiptMessage(summary reviewSummaryResponse, comment string) string {
 	return builder.String()
 }
 
+// buildDiscordReviewMessage は管理者向けに Discord へ送る通知文面を生成する。
 func buildDiscordReviewMessage(adminBaseURL string, user common.AuthenticatedUser, summary reviewSummaryResponse, comment string) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("**%s** から新しいアンケート投稿があります。\n", reviewerDisplayName(user)))
@@ -80,18 +84,12 @@ func buildDiscordReviewMessage(adminBaseURL string, user common.AuthenticatedUse
 	return builder.String()
 }
 
+// sendLineMessage は messenger-service を経由して LINE に通知を送信する。
 func (h *Handler) sendLineMessage(ctx context.Context, userID, text string) error {
 	return h.sendMessengerMessage(ctx, h.messengerDestination, userID, text)
 }
 
-func (h *Handler) sendDiscordMessage(ctx context.Context, userID, text string) error {
-	dest := strings.TrimSpace(h.discordDestination)
-	if dest == "" {
-		return nil
-	}
-	return h.sendMessengerMessage(ctx, dest, userID, text)
-}
-
+// notifyAdminChannels は管理者向けの Discord/Slack 通知を順次試行し、必要に応じて失敗レコードを残す。
 func (h *Handler) notifyAdminChannels(ctx context.Context, user common.AuthenticatedUser, summary reviewSummaryResponse, comment string) {
 	discordDest := strings.TrimSpace(h.discordDestination)
 	slackDest := strings.TrimSpace(h.slackDestination)
@@ -147,6 +145,7 @@ func (h *Handler) notifyAdminChannels(ctx context.Context, user common.Authentic
 	h.persistNotificationFailure(ctx, identifier, user, summary, comment, discordErr, slackErr, attempts)
 }
 
+// buildSlackReviewMessage は Slack に投稿するための簡潔な通知文面を生成する。
 func buildSlackReviewMessage(adminBaseURL string, user common.AuthenticatedUser, summary reviewSummaryResponse, comment string) string {
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf(":warning: %s さんから新しいアンケート投稿があります。\n", reviewerDisplayName(user)))
@@ -162,6 +161,8 @@ func buildSlackReviewMessage(adminBaseURL string, user common.AuthenticatedUser,
 	return builder.String()
 }
 
+// sendMessengerWithRetry は messenger-service への送信をリトライし、最後のエラーを返す。
+// 通知系の耐障害性を担保するためのインフラ層ヘルパー。
 func (h *Handler) sendMessengerWithRetry(ctx context.Context, destination, userID, text string, attempts int, delay time.Duration) error {
 	destination = strings.TrimSpace(destination)
 	if destination == "" {
@@ -184,6 +185,8 @@ func (h *Handler) sendMessengerWithRetry(ctx context.Context, destination, userI
 	return lastErr
 }
 
+// persistNotificationFailure は通知失敗時の詳細情報を `failed_notifications` コレクションに保存する。
+// 後続の再送作業を人力でも実施できるよう、必要なコンテキストを詰め込む。
 func (h *Handler) persistNotificationFailure(ctx context.Context, identifier string, user common.AuthenticatedUser, summary reviewSummaryResponse, comment string, discordErr, slackErr error, attempts int) {
 	if h.failedNotifications == nil {
 		return
@@ -216,6 +219,7 @@ func (h *Handler) persistNotificationFailure(ctx context.Context, identifier str
 	}
 }
 
+// combineNotificationErrors は Discord/Slack 両方のエラーを 1 つのメッセージへまとめる。
 func combineNotificationErrors(errs ...error) error {
 	parts := make([]string, 0, len(errs))
 	for _, err := range errs {
@@ -227,9 +231,10 @@ func combineNotificationErrors(errs ...error) error {
 	if len(parts) == 0 {
 		return nil
 	}
-	return fmt.Errorf(strings.Join(parts, "; "))
+	return errors.New(strings.Join(parts, "; "))
 }
 
+// sendMessengerMessage は messenger-service の REST API を呼び出し通知を配送する最下層の処理。
 func (h *Handler) sendMessengerMessage(ctx context.Context, destination, userID, bodyText string) error {
 	trimmedUserID := strings.TrimSpace(userID)
 	if trimmedUserID == "" {

@@ -6,6 +6,8 @@ import (
 	"github.com/sngm3741/makoto-club-services/api/internal/interfaces/http/common"
 )
 
+// authVerifyHandler はログイン中のユーザー情報を返す検証用エンドポイント。
+// 認証ミドルウェアの確認やフロントエンドの連携テストに利用する。
 func (h *Handler) authVerifyHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		user, ok := common.UserFromContext(r.Context())
