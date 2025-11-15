@@ -25,7 +25,9 @@ type Handler struct {
 	messengerEndpoint    string
 	messengerDestination string
 	discordDestination   string
+	slackDestination     string
 	adminReviewBaseURL   string
+	failedNotifications  *mongo.Collection
 }
 
 // Config defines dependencies required by Handler.
@@ -43,6 +45,8 @@ type Config struct {
 	MessengerEndpoint    string
 	MessengerDestination string
 	DiscordDestination   string
+	SlackDestination     string
+	FailedNotifications  *mongo.Collection
 	AdminReviewBaseURL   string
 }
 
@@ -62,7 +66,9 @@ func NewHandler(cfg Config) *Handler {
 		messengerEndpoint:    cfg.MessengerEndpoint,
 		messengerDestination: cfg.MessengerDestination,
 		discordDestination:   cfg.DiscordDestination,
+		slackDestination:     cfg.SlackDestination,
 		adminReviewBaseURL:   cfg.AdminReviewBaseURL,
+		failedNotifications:  cfg.FailedNotifications,
 	}
 }
 

@@ -15,27 +15,29 @@ type JWTConfig struct {
 
 // Config holds runtime configuration shared across the application.
 type Config struct {
-	Addr                  string
-	MongoURI              string
-	MongoDatabase         string
-	PingCollection        string
-	StoreCollection       string
-	ReviewCollection      string
-	HelpfulVoteCollection string
-	Timeout               time.Duration
-	Timezone              string
-	ServerLog             *log.Logger
-	JWTConfigs            []JWTConfig
-	JWTAudience           string
-	MessengerEndpoint     string
-	MessengerDestination  string
-	DiscordDestination    string
-	MessengerTimeout      time.Duration
-	AdminReviewBaseURL    string
-	AllowedOrigins        []string
-	MediaBaseURL          string
-	HelpfulCookieSecret   []byte
-	HelpfulCookieSecure   bool
+	Addr                         string
+	MongoURI                     string
+	MongoDatabase                string
+	PingCollection               string
+	StoreCollection              string
+	ReviewCollection             string
+	HelpfulVoteCollection        string
+	Timeout                      time.Duration
+	Timezone                     string
+	ServerLog                    *log.Logger
+	JWTConfigs                   []JWTConfig
+	JWTAudience                  string
+	MessengerEndpoint            string
+	MessengerDestination         string
+	DiscordDestination           string
+	SlackDestination             string
+	MessengerTimeout             time.Duration
+	AdminReviewBaseURL           string
+	AllowedOrigins               []string
+	MediaBaseURL                 string
+	HelpfulCookieSecret          []byte
+	HelpfulCookieSecure          bool
+	FailedNotificationCollection string
 }
 
 // Load reads environment variables and returns a fully populated Config.
@@ -58,6 +60,8 @@ func Load() Config {
 	}
 
 	discordDestination := strings.TrimSpace(os.Getenv("MESSENGER_DISCORD_INCOMING_DESTINATION"))
+
+	slackDestination := strings.TrimSpace(os.Getenv("MESSENGER_SLACK_DESTINATION"))
 
 	messengerTimeout := 3 * time.Second
 	if raw := strings.TrimSpace(os.Getenv("MESSENGER_GATEWAY_TIMEOUT")); raw != "" {
@@ -106,28 +110,32 @@ func Load() Config {
 		reviewCollection = envOrDefault("SURVEY_COLLECTION", "reviews")
 	}
 
+	failedNotifications := envOrDefault("FAILED_NOTIFICATION_COLLECTION", "failed_notifications")
+
 	cfg := Config{
-		Addr:                  envOrDefault("HTTP_ADDR", ":8080"),
-		MongoURI:              envOrDefault("MONGO_URI", "mongodb://mongo:27017"),
-		MongoDatabase:         envOrDefault("MONGO_DB", "makoto-club"),
-		StoreCollection:       storeCollection,
-		ReviewCollection:      reviewCollection,
-		HelpfulVoteCollection: envOrDefault("HELPFUL_VOTE_COLLECTION", "survey_helpful_votes"),
-		PingCollection:        envOrDefault("PING_COLLECTION", "pings"),
-		Timeout:               timeout,
-		Timezone:              envOrDefault("TIMEZONE", "Asia/Tokyo"),
-		ServerLog:             log.New(os.Stdout, "[makoto-club-api] ", log.LstdFlags|log.Lshortfile),
-		JWTConfigs:            jwtConfigs,
-		JWTAudience:           jwtAudience,
-		MessengerEndpoint:     messengerEndpoint,
-		MessengerDestination:  messengerDestination,
-		DiscordDestination:    discordDestination,
-		MessengerTimeout:      messengerTimeout,
-		AdminReviewBaseURL:    adminReviewBaseURL,
-		AllowedOrigins:        allowedOrigins,
-		MediaBaseURL:          strings.TrimSpace(os.Getenv("MEDIA_BASE_URL")),
-		HelpfulCookieSecret:   []byte(helperSecret),
-		HelpfulCookieSecure:   helperCookieSecure,
+		Addr:                         envOrDefault("HTTP_ADDR", ":8080"),
+		MongoURI:                     envOrDefault("MONGO_URI", "mongodb://mongo:27017"),
+		MongoDatabase:                envOrDefault("MONGO_DB", "makoto-club"),
+		StoreCollection:              storeCollection,
+		ReviewCollection:             reviewCollection,
+		HelpfulVoteCollection:        envOrDefault("HELPFUL_VOTE_COLLECTION", "survey_helpful_votes"),
+		PingCollection:               envOrDefault("PING_COLLECTION", "pings"),
+		Timeout:                      timeout,
+		Timezone:                     envOrDefault("TIMEZONE", "Asia/Tokyo"),
+		ServerLog:                    log.New(os.Stdout, "[makoto-club-api] ", log.LstdFlags|log.Lshortfile),
+		JWTConfigs:                   jwtConfigs,
+		JWTAudience:                  jwtAudience,
+		MessengerEndpoint:            messengerEndpoint,
+		MessengerDestination:         messengerDestination,
+		DiscordDestination:           discordDestination,
+		SlackDestination:             slackDestination,
+		MessengerTimeout:             messengerTimeout,
+		AdminReviewBaseURL:           adminReviewBaseURL,
+		AllowedOrigins:               allowedOrigins,
+		MediaBaseURL:                 strings.TrimSpace(os.Getenv("MEDIA_BASE_URL")),
+		HelpfulCookieSecret:          []byte(helperSecret),
+		HelpfulCookieSecure:          helperCookieSecure,
+		FailedNotificationCollection: failedNotifications,
 	}
 
 	cfg.ServerLog.Printf("loaded config: adminReviewBaseURL=%q messengerEndpoint=%q destination=%q", adminReviewBaseURL, messengerEndpoint, messengerDestination)

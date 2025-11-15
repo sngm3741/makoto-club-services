@@ -17,15 +17,16 @@
 - [x] (2025-11-14T13:05Z) HTTP起動処理を `internal/server` へ移動し、`cmd/api/main.go` を設定読込＋起動の薄いブートストラップに整理
 - [x] (2025-11-14T14:10Z) Public HTTPハンドラを `internal/interfaces/http/public` に移し、`server.Run` からDIする構成を確立（匿名投稿/Helpful/CORS含む）
 - [x] (2025-11-14T15:10Z) Admin HTTPハンドラを `internal/interfaces/http/admin` に移し、Mongo直接操作/バリデーション/統計更新を新パッケージへ集約
-- [ ] Admin Store Service：検索/詳細/作成/更新＋重複検知＋業種/タグ配列更新
-- [ ] Admin Survey Service：一覧/詳細/作成/更新と統計再計算の責務整理
-- [ ] HTTP層再配置（`internal/interfaces/http/{public,admin}`）とJWT/CORS/通知の初期化統合
-- [ ] Discord→Slack通知フロー + 失敗レコード保管
+- [x] (2025-11-15T02:10Z) Admin Store Service：検索/詳細/作成/更新＋重複検知＋業種/タグ配列更新
+- [x] (2025-11-15T04:05Z) Admin Survey Service：一覧/詳細/作成/更新と統計再計算の責務整理（Mongoリポジトリ＋VO/DTO変換）
+- [x] (2025-11-15T04:20Z) Admin HTTPレビュー系をSurveyService経由に差し替え（一覧/詳細/更新/店舗紐付け投稿）
+- [x] (2025-11-15T06:10Z) HTTP層再配置（`internal/interfaces/http/{public,admin}`）: `internal/server` からlegacyハンドラ・DTOを完全撤去し、DIのみの薄い層へ整理
+- [x] (2025-11-15T07:05Z) Discord→Slack通知フロー + 失敗レコード保管（Messenger送信リトライ→Slackフォールバック→`failed_notifications` 永続化）
 - [ ] エンドツーエンド検証（API, ドキュメント更新, 会議メモ追記）
 
 ## Surprises & Discoveries
-- Observation: TBD
-  Evidence: TBD
+- Observation: 旧Admin/Public双方でストア統計の集計が `waitTimeHours` フィールドを参照しており、Mongo上に存在しないため平均待機時間が常に0扱いになっていた。
+  Evidence: `internal/interfaces/http/admin/helpers.go` / `internal/server/server.go` の集計パイプラインが `waitTimeHours` を指定、ReviewDocumentには `waitTimeMinutes` のみ存在。
 
 ## Decision Log
 - Decision: Public/API v1 ルーティング＆Query/Command分離を採用

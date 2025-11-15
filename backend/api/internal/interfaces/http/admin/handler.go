@@ -2,39 +2,31 @@ package admin
 
 import (
 	"log"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	adminapp "github.com/sngm3741/makoto-club-services/api/internal/admin/application"
-	"go.mongodb.org/mongo-driver/mongo"
 )
 
 // Handler wires admin HTTP endpoints to application services.
 type Handler struct {
-	logger       *log.Logger
-	storeService adminapp.StoreService
-	stores       *mongo.Collection
-	reviews      *mongo.Collection
-	location     *time.Location
+	logger        *log.Logger
+	storeService  adminapp.StoreService
+	surveyService adminapp.SurveyService
 }
 
 // Config provides dependencies for Handler.
 type Config struct {
-	Logger       *log.Logger
-	StoreService adminapp.StoreService
-	Stores       *mongo.Collection
-	Reviews      *mongo.Collection
-	Location     *time.Location
+	Logger        *log.Logger
+	StoreService  adminapp.StoreService
+	SurveyService adminapp.SurveyService
 }
 
 // NewHandler constructs an admin HTTP handler set.
 func NewHandler(cfg Config) *Handler {
 	return &Handler{
-		logger:       cfg.Logger,
-		storeService: cfg.StoreService,
-		stores:       cfg.Stores,
-		reviews:      cfg.Reviews,
-		location:     cfg.Location,
+		logger:        cfg.Logger,
+		storeService:  cfg.StoreService,
+		surveyService: cfg.SurveyService,
 	}
 }
 

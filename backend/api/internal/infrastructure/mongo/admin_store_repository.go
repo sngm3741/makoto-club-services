@@ -3,6 +3,7 @@ package mongo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"regexp"
 	"strings"
 	"time"
@@ -73,7 +74,11 @@ func (r *AdminStoreRepository) Find(ctx context.Context, filter application.Stor
 		if err := cursor.Decode(&doc); err != nil {
 			return nil, err
 		}
-		stores = append(stores, mapAdminStore(doc))
+		store, err := mapAdminStore(doc)
+		if err != nil {
+			return nil, err
+		}
+		stores = append(stores, store)
 	}
 	if err := cursor.Err(); err != nil {
 		return nil, err
@@ -90,7 +95,10 @@ func (r *AdminStoreRepository) FindByID(ctx context.Context, id string) (*admind
 	if err := r.collection.FindOne(ctx, bson.M{"_id": objectID}).Decode(&doc); err != nil {
 		return nil, err
 	}
-	store := mapAdminStore(doc)
+	store, err := mapAdminStore(doc)
+	if err != nil {
+		return nil, err
+	}
 	return &store, nil
 }
 
@@ -107,29 +115,11 @@ func (r *AdminStoreRepository) Create(ctx context.Context, store *admindomain.St
 	} else if !errors.Is(err, mongo.ErrNoDocuments) {
 		return err
 	}
-	payload := bson.M{
-		"name":            store.Name,
-		"branchName":      store.BranchName,
-		"groupName":       store.GroupName,
-		"prefecture":      store.Prefecture,
-		"area":            store.Area,
-		"genre":           store.Genre,
-		"industries":      store.Industries,
-		"employmentTypes": store.EmploymentTypes,
-		"pricePerHour":    store.PricePerHour,
-		"priceRange":      store.PriceRange,
-		"averageEarning":  store.AverageEarning,
-		"businessHours":   store.BusinessHours,
-		"tags":            store.Tags,
-		"homepageURL":     store.HomepageURL,
-		"sns":             flattenAdminSNSLinks(store.SNS),
-		"photoURLs":       store.PhotoURLs,
-		"description":     store.Description,
-		"stats":           StoreStatsDocument{},
-		"createdAt":       time.Now().UTC(),
-		"updatedAt":       time.Now().UTC(),
+	payload, err := buildStoreDocument(store, true)
+	if err != nil {
+		return err
 	}
-	_, err := r.collection.InsertOne(ctx, payload)
+	_, err = r.collection.InsertOne(ctx, payload)
 	return err
 }
 
@@ -138,42 +128,53 @@ func (r *AdminStoreRepository) Update(ctx context.Context, store *admindomain.St
 	if err != nil {
 		return err
 	}
-	update := bson.M{
-		"name":            store.Name,
-		"branchName":      store.BranchName,
-		"groupName":       store.GroupName,
-		"prefecture":      store.Prefecture,
-		"area":            store.Area,
-		"genre":           store.Genre,
-		"industries":      store.Industries,
-		"employmentTypes": store.EmploymentTypes,
-		"pricePerHour":    store.PricePerHour,
-		"priceRange":      store.PriceRange,
-		"averageEarning":  store.AverageEarning,
-		"businessHours":   store.BusinessHours,
-		"tags":            store.Tags,
-		"homepageURL":     store.HomepageURL,
-		"sns":             flattenAdminSNSLinks(store.SNS),
-		"photoURLs":       store.PhotoURLs,
-		"description":     store.Description,
-		"updatedAt":       time.Now().UTC(),
+	update, err := buildStoreDocument(store, false)
+	if err != nil {
+		return err
 	}
 	_, err = r.collection.UpdateByID(ctx, objectID, bson.M{"$set": update})
 	return err
 }
 
-func mapAdminStore(doc StoreDocument) admindomain.Store {
-	pref, _ := admindomain.NewPrefecture(doc.Prefecture)
-	industries, _ := admindomain.NewIndustryList(doc.Industries)
-	employment, _ := admindomain.NewEmploymentTypeList(doc.EmploymentTypes)
-	tags, _ := admindomain.NewTagList(doc.Tags)
-	homepage, _ := admindomain.NewURL(doc.HomepageURL)
-	photos, _ := admindomain.NewPhotoURLList(doc.PhotoURLs, 0)
-	price, _ := admindomain.NewMoney(doc.PricePerHour)
-	avg, _ := admindomain.NewMoney(doc.AverageEarning)
-	sns, _ := admindomain.NewSNSLinks(doc.SNS.Twitter, doc.SNS.Line, doc.SNS.Instagram, doc.SNS.TikTok, doc.SNS.Official)
+func mapAdminStore(doc StoreDocument) (admindomain.Store, error) {
+	pref, err := admindomain.NewPrefecture(doc.Prefecture)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	industries, err := admindomain.NewIndustryList(doc.Industries)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	employment, err := admindomain.NewEmploymentTypeList(doc.EmploymentTypes)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	tags, err := admindomain.NewTagList(doc.Tags)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	homepage, err := admindomain.NewURL(doc.HomepageURL)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	photos, err := admindomain.NewPhotoURLList(doc.PhotoURLs, 0)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	price, err := admindomain.NewMoney(doc.PricePerHour)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	avg, err := admindomain.NewMoney(doc.AverageEarning)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
+	sns, err := admindomain.NewSNSLinks(doc.SNS.Twitter, doc.SNS.Line, doc.SNS.Instagram, doc.SNS.TikTok, doc.SNS.Official)
+	if err != nil {
+		return admindomain.Store{}, err
+	}
 
-	return admindomain.Store{
+	store := admindomain.Store{
 		ID:              doc.ID.Hex(),
 		Name:            doc.Name,
 		BranchName:      strings.TrimSpace(doc.BranchName),
@@ -195,6 +196,44 @@ func mapAdminStore(doc StoreDocument) admindomain.Store {
 		ReviewCount:     doc.Stats.ReviewCount,
 		LastReviewedAt:  doc.Stats.LastReviewedAt,
 	}
+	if doc.CreatedAt != nil {
+		store.CreatedAt = *doc.CreatedAt
+	}
+	if doc.UpdatedAt != nil {
+		store.UpdatedAt = *doc.UpdatedAt
+	}
+	return store, nil
+}
+
+func buildStoreDocument(store *admindomain.Store, includeCreated bool) (bson.M, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store payload is nil")
+	}
+	payload := bson.M{
+		"name":            store.Name,
+		"branchName":      store.BranchName,
+		"groupName":       store.GroupName,
+		"prefecture":      store.Prefecture.String(),
+		"area":            store.Area,
+		"genre":           store.Genre,
+		"industries":      store.Industries.Strings(),
+		"employmentTypes": store.EmploymentTypes.Strings(),
+		"pricePerHour":    store.PricePerHour.Int(),
+		"priceRange":      store.PriceRange,
+		"averageEarning":  store.AverageEarning.Int(),
+		"businessHours":   store.BusinessHours,
+		"tags":            store.Tags.Strings(),
+		"homepageURL":     store.HomepageURL.String(),
+		"sns":             flattenAdminSNSLinks(store.SNS),
+		"photoURLs":       store.PhotoURLs.Strings(),
+		"description":     store.Description,
+		"updatedAt":       time.Now().UTC(),
+	}
+	if includeCreated {
+		payload["stats"] = StoreStatsDocument{}
+		payload["createdAt"] = time.Now().UTC()
+	}
+	return payload, nil
 }
 
 func flattenAdminSNSLinks(links admindomain.SNSLinks) StoreSNSDocument {

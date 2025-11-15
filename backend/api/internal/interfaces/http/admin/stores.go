@@ -13,9 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	adminapp "github.com/sngm3741/makoto-club-services/api/internal/admin/application"
-	mongodoc "github.com/sngm3741/makoto-club-services/api/internal/infrastructure/mongo"
 	"github.com/sngm3741/makoto-club-services/api/internal/interfaces/http/common"
-	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 )
@@ -112,8 +110,7 @@ func (h *Handler) storeReviewCreateHandler() http.HandlerFunc {
 			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "店舗IDが指定されていません"})
 			return
 		}
-		storeID, err := primitive.ObjectIDFromHex(storeIDParam)
-		if err != nil {
+		if _, err := primitive.ObjectIDFromHex(storeIDParam); err != nil {
 			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
 			return
 		}
@@ -148,73 +145,59 @@ func (h *Handler) storeReviewCreateHandler() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		storeDoc, err := h.getStoreByID(ctx, storeID)
+		store, err := h.storeService.Detail(ctx, storeIDParam)
 		if err != nil {
 			if errors.Is(err, mongo.ErrNoDocuments) {
 				common.WriteJSON(h.logger, w, http.StatusNotFound, map[string]string{"error": "指定された店舗が見つかりません"})
 				return
 			}
+			h.logger.Printf("admin store review create store fetch failed id=%s err=%v", storeIDParam, err)
 			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
 			return
 		}
 
-		category := common.CanonicalIndustryCode(req.IndustryCode)
-		if category == "" && len(storeDoc.Industries) > 0 {
-			category = common.CanonicalIndustryCode(storeDoc.Industries[0])
-		}
-		if category == "" {
-			category = "デリヘル"
-		}
-
+		category := resolveIndustryForSurvey(req.IndustryCode, store.Industries.Strings())
 		waitMinutes := metrics.WaitTimeHours * 60
-		now := time.Now().In(h.location)
-		reviewDoc := mongodoc.ReviewDocument{
-			ID:              primitive.NewObjectID(),
-			StoreID:         storeID,
-			StoreName:       storeDoc.Name,
-			BranchName:      storeDoc.BranchName,
-			Prefecture:      storeDoc.Prefecture,
-			Area:            storeDoc.Area,
-			Industries:      []string{category},
-			Genre:           storeDoc.Genre,
-			Period:          period,
-			Age:             common.IntPtr(metrics.Age),
-			SpecScore:       common.IntPtr(metrics.SpecScore),
-			WaitTimeMinutes: common.IntPtr(waitMinutes),
-			AverageEarning:  common.IntPtr(metrics.AverageEarning),
-			EmploymentType:  "",
-			CustomerNote:    metrics.Comment,
-			StaffNote:       "",
-			EnvironmentNote: "",
-			Rating:          metrics.Rating,
-			Comment:         metrics.Comment,
-			ContactEmail:    metrics.ContactEmail,
-			Photos:          nil,
-			Tags:            nil,
-			HelpfulCount:    0,
-			CreatedAt:       now,
-			UpdatedAt:       now,
-		}
-
-		if _, err := h.reviews.InsertOne(ctx, reviewDoc); err != nil {
-			h.logger.Printf("admin store review create insert failed storeId=%s err=%v", storeID.Hex(), err)
-			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "アンケートの登録に失敗しました"})
+		comment := strings.TrimSpace(metrics.Comment)
+		email, err := normalizeEmail(metrics.ContactEmail)
+		if err != nil {
+			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
 
-		if category != "" && !containsString(storeDoc.Industries, category) {
-			if _, err := h.stores.UpdateByID(ctx, storeID, bson.M{"$addToSet": bson.M{"industries": category}}); err != nil {
-				h.logger.Printf("admin store review create industry add failed storeId=%s err=%v", storeID.Hex(), err)
-			} else if refreshed, err := h.getStoreByID(ctx, storeID); err == nil {
-				storeDoc = refreshed
-			}
+		cmd := adminapp.UpsertSurveyCommand{
+			StoreID:         store.ID,
+			StoreName:       store.Name,
+			BranchName:      store.BranchName,
+			Prefecture:      store.Prefecture.String(),
+			Area:            store.Area,
+			Industries:      []string{category},
+			Genre:           store.Genre,
+			Period:          period,
+			Age:             common.IntPtr(metrics.Age),
+			SpecScore:       common.IntPtr(metrics.SpecScore),
+			WaitTime:        common.IntPtr(waitMinutes),
+			AverageEarning:  common.IntPtr(metrics.AverageEarning),
+			EmploymentType:  "",
+			CustomerNote:    comment,
+			StaffNote:       "",
+			EnvironmentNote: "",
+			Comment:         comment,
+			ContactEmail:    email,
+			Tags:            nil,
+			Photos:          nil,
+			Rating:          metrics.Rating,
+			HelpfulCount:    0,
 		}
 
-		if err := h.recalculateStoreStats(ctx, storeID); err != nil {
-			h.logger.Printf("admin store review create stats failed storeId=%s err=%v", storeID.Hex(), err)
+		survey, err := h.surveyService.Create(ctx, cmd)
+		if err != nil {
+			h.logger.Printf("admin store review create failed storeId=%s err=%v", storeIDParam, err)
+			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
 		}
 
-		common.WriteJSON(h.logger, w, http.StatusCreated, buildAdminReviewResponse(reviewDoc, storeDoc))
+		common.WriteJSON(h.logger, w, http.StatusCreated, adminSurveyDomainToResponse(*survey))
 	}
 }
 
@@ -311,4 +294,16 @@ func normalizePhotoURLs(urls []string, max int) ([]string, error) {
 		}
 	}
 	return result, nil
+}
+
+func resolveIndustryForSurvey(input string, storeIndustries []string) string {
+	if category := common.CanonicalIndustryCode(input); category != "" {
+		return category
+	}
+	for _, raw := range storeIndustries {
+		if category := common.CanonicalIndustryCode(raw); category != "" {
+			return category
+		}
+	}
+	return "デリヘル"
 }

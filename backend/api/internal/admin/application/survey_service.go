@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"time"
 
 	admindomain "github.com/sngm3741/makoto-club-services/api/internal/admin/domain"
 )
@@ -24,37 +25,13 @@ func (s *surveyService) Detail(ctx context.Context, id string) (*admindomain.Sur
 }
 
 func (s *surveyService) Create(ctx context.Context, cmd UpsertSurveyCommand) (*admindomain.Survey, error) {
-	industries := append([]string{}, cmd.Industries...)
-	if len(industries) == 0 {
-		return nil, errors.New("industries must not be empty")
+	survey, err := buildSurveyFromCommand("", cmd)
+	if err != nil {
+		return nil, err
 	}
-	waitTime := normalizeWaitTime(cmd.WaitTime, cmd.WaitTimeHours)
-	photos := mapSurveyPhotoCommands(cmd.Photos)
-
-	survey := &admindomain.Survey{
-		StoreID:         cmd.StoreID,
-		StoreName:       cmd.StoreName,
-		BranchName:      cmd.BranchName,
-		Prefecture:      cmd.Prefecture,
-		Area:            cmd.Area,
-		Industries:      industries,
-		Genre:           cmd.Genre,
-		Period:          cmd.Period,
-		Age:             cmd.Age,
-		SpecScore:       cmd.SpecScore,
-		WaitTime:        waitTime,
-		EmploymentType:  cmd.EmploymentType,
-		AverageEarning:  cmd.AverageEarning,
-		CustomerNote:    cmd.CustomerNote,
-		StaffNote:       cmd.StaffNote,
-		EnvironmentNote: cmd.EnvironmentNote,
-		Comment:         cmd.Comment,
-		ContactEmail:    cmd.ContactEmail,
-		Tags:            append([]string{}, cmd.Tags...),
-		Photos:          photos,
-		Rating:          normalizeRating(cmd.Rating),
-		HelpfulCount:    cmd.HelpfulCount,
-	}
+	now := time.Now().UTC()
+	survey.CreatedAt = now
+	survey.UpdatedAt = now
 	if err := s.repo.Create(ctx, survey); err != nil {
 		return nil, err
 	}
@@ -62,21 +39,57 @@ func (s *surveyService) Create(ctx context.Context, cmd UpsertSurveyCommand) (*a
 }
 
 func (s *surveyService) Update(ctx context.Context, id string, cmd UpsertSurveyCommand) (*admindomain.Survey, error) {
+	survey, err := buildSurveyFromCommand(id, cmd)
+	if err != nil {
+		return nil, err
+	}
+	survey.UpdatedAt = time.Now().UTC()
+	if err := s.repo.Update(ctx, survey); err != nil {
+		return nil, err
+	}
+	return survey, nil
+}
+
+func buildSurveyFromCommand(id string, cmd UpsertSurveyCommand) (*admindomain.Survey, error) {
 	industries := append([]string{}, cmd.Industries...)
 	if len(industries) == 0 {
 		return nil, errors.New("industries must not be empty")
 	}
-	waitTime := normalizeWaitTime(cmd.WaitTime, cmd.WaitTimeHours)
-	photos := mapSurveyPhotoCommands(cmd.Photos)
+	pref, err := admindomain.NewPrefecture(cmd.Prefecture)
+	if err != nil {
+		return nil, err
+	}
+	industryList, err := admindomain.NewIndustryList(cmd.Industries)
+	if err != nil {
+		return nil, err
+	}
+	email, err := admindomain.NewEmail(cmd.ContactEmail)
+	if err != nil {
+		return nil, err
+	}
+	tags, err := admindomain.NewTagList(cmd.Tags)
+	if err != nil {
+		return nil, err
+	}
+	rating, err := admindomain.NewRating(normalizeRating(cmd.Rating))
+	if err != nil {
+		return nil, err
+	}
+	photos, err := mapSurveyPhotoCommands(cmd.Photos)
+	if err != nil {
+		return nil, err
+	}
 
-	survey := &admindomain.Survey{
+	waitTime := normalizeWaitTime(cmd.WaitTime, cmd.WaitTimeHours)
+
+	return &admindomain.Survey{
 		ID:              id,
 		StoreID:         cmd.StoreID,
 		StoreName:       cmd.StoreName,
 		BranchName:      cmd.BranchName,
-		Prefecture:      cmd.Prefecture,
+		Prefecture:      pref,
 		Area:            cmd.Area,
-		Industries:      industries,
+		Industries:      industryList,
 		Genre:           cmd.Genre,
 		Period:          cmd.Period,
 		Age:             cmd.Age,
@@ -88,33 +101,33 @@ func (s *surveyService) Update(ctx context.Context, id string, cmd UpsertSurveyC
 		StaffNote:       cmd.StaffNote,
 		EnvironmentNote: cmd.EnvironmentNote,
 		Comment:         cmd.Comment,
-		ContactEmail:    cmd.ContactEmail,
-		Tags:            append([]string{}, cmd.Tags...),
+		ContactEmail:    email,
+		Tags:            tags,
 		Photos:          photos,
-		Rating:          normalizeRating(cmd.Rating),
+		Rating:          rating,
 		HelpfulCount:    cmd.HelpfulCount,
-	}
-	if err := s.repo.Update(ctx, survey); err != nil {
-		return nil, err
-	}
-	return survey, nil
+	}, nil
 }
 
-func mapSurveyPhotoCommands(inputs []SurveyPhotoCommand) []admindomain.SurveyPhoto {
+func mapSurveyPhotoCommands(inputs []SurveyPhotoCommand) ([]admindomain.SurveyPhoto, error) {
 	if len(inputs) == 0 {
-		return nil
+		return nil, nil
 	}
 	photos := make([]admindomain.SurveyPhoto, 0, len(inputs))
 	for _, input := range inputs {
+		publicURL, err := admindomain.NewPhotoURL(input.PublicURL)
+		if err != nil {
+			return nil, err
+		}
 		photos = append(photos, admindomain.SurveyPhoto{
 			ID:          input.ID,
 			StoredPath:  input.StoredPath,
-			PublicURL:   input.PublicURL,
+			PublicURL:   publicURL,
 			ContentType: input.ContentType,
 			UploadedAt:  input.UploadedAt,
 		})
 	}
-	return photos
+	return photos, nil
 }
 
 func normalizeWaitTime(minutes *int, hours *int) *int {

@@ -11,83 +11,36 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	mongodoc "github.com/sngm3741/makoto-club-services/api/internal/infrastructure/mongo"
+	adminapp "github.com/sngm3741/makoto-club-services/api/internal/admin/application"
+	admindomain "github.com/sngm3741/makoto-club-services/api/internal/admin/domain"
 	"github.com/sngm3741/makoto-club-services/api/internal/interfaces/http/common"
-	"go.mongodb.org/mongo-driver/bson"
-	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
-	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func (h *Handler) reviewListHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
-		storeIDParam := strings.TrimSpace(query.Get("storeId"))
-		filter := bson.M{}
-		if storeIDParam != "" {
-			storeID, err := primitive.ObjectIDFromHex(storeIDParam)
-			if err != nil {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
-				return
-			}
-			filter["storeId"] = storeID
-		}
+		storeID := strings.TrimSpace(query.Get("storeId"))
+		keyword := strings.TrimSpace(query.Get("keyword"))
+		limit, _ := common.ParsePositiveInt(query.Get("limit"), 0)
 
-		opts := options.Find().SetSort(bson.D{{Key: "createdAt", Value: -1}})
+		filter := adminapp.SurveyFilter{StoreID: storeID, Keyword: keyword}
+		paging := adminapp.Paging{Limit: limit}
 
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		cursor, err := h.reviews.Find(ctx, filter, opts)
+		surveys, err := h.surveyService.List(ctx, filter, paging)
 		if err != nil {
-			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "アンケート一覧の取得に失敗しました"})
-			return
-		}
-		defer cursor.Close(ctx)
-
-		var reviews []mongodoc.ReviewDocument
-		storeIDSet := make(map[primitive.ObjectID]struct{})
-		for cursor.Next(ctx) {
-			var doc mongodoc.ReviewDocument
-			if err := cursor.Decode(&doc); err != nil {
-				h.logger.Printf("管理リスト用レビューのデコードに失敗: %v", err)
-				continue
-			}
-			reviews = append(reviews, doc)
-			storeIDSet[doc.StoreID] = struct{}{}
-		}
-
-		if err := cursor.Err(); err != nil {
+			h.logger.Printf("admin review list fetch failed: %v", err)
 			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "アンケート一覧の取得に失敗しました"})
 			return
 		}
 
-		storeIDs := make([]primitive.ObjectID, 0, len(storeIDSet))
-		for id := range storeIDSet {
-			storeIDs = append(storeIDs, id)
+		items := make([]adminReviewResponse, 0, len(surveys))
+		for _, survey := range surveys {
+			items = append(items, adminSurveyDomainToResponse(survey))
 		}
-
-		storeMap, err := h.loadStoresMap(ctx, storeIDs)
-		if err != nil {
-			h.logger.Printf("管理リスト用店舗の取得に失敗: %v", err)
-			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
-			return
-		}
-
-		items := make([]adminReviewResponse, 0, len(reviews))
-		for _, review := range reviews {
-			store, ok := storeMap[review.StoreID]
-			if !ok {
-				if fetched, fetchErr := h.getStoreByID(ctx, review.StoreID); fetchErr == nil {
-					store = fetched
-				} else {
-					h.logger.Printf("管理リスト用店舗が見つかりません reviewId=%s storeId=%s err=%v", review.ID.Hex(), review.StoreID.Hex(), fetchErr)
-				}
-			}
-			items = append(items, buildAdminReviewResponse(review, store))
-		}
-
-		h.logger.Printf("admin review list: storeId=%q count=%d", storeIDParam, len(items))
 		common.WriteJSON(h.logger, w, http.StatusOK, adminReviewListResponse{Items: items})
 	}
 }
@@ -95,46 +48,34 @@ func (h *Handler) reviewListHandler() http.HandlerFunc {
 func (h *Handler) reviewDetailHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idParam := strings.TrimSpace(chi.URLParam(r, "id"))
-		h.logger.Printf("admin review detail request id=%q", idParam)
-		objectID, err := primitive.ObjectIDFromHex(idParam)
-		if err != nil {
-			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "レビューIDの形式が不正です"})
+		if idParam == "" {
+			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "アンケートIDが指定されていません"})
 			return
 		}
 
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		var review mongodoc.ReviewDocument
-		if err := h.reviews.FindOne(ctx, bson.M{"_id": objectID}).Decode(&review); err != nil {
+		survey, err := h.surveyService.Detail(ctx, idParam)
+		if err != nil {
 			if errors.Is(err, mongo.ErrNoDocuments) {
-				h.logger.Printf("admin review detail not found id=%q", idParam)
-				common.WriteJSON(h.logger, w, http.StatusNotFound, map[string]string{"error": "レビューが見つかりません"})
+				common.WriteJSON(h.logger, w, http.StatusNotFound, map[string]string{"error": "アンケートが見つかりません"})
 				return
 			}
-			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "レビューの取得に失敗しました"})
+			h.logger.Printf("admin review detail fetch failed id=%s err=%v", idParam, err)
+			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "アンケートの取得に失敗しました"})
 			return
 		}
 
-		store, err := h.getStoreByID(ctx, review.StoreID)
-		if err != nil {
-			h.logger.Printf("admin review detail store fetch failed id=%q storeId=%s err=%v", idParam, review.StoreID.Hex(), err)
-			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
-			return
-		}
-
-		h.logger.Printf("admin review detail success id=%q", idParam)
-		common.WriteJSON(h.logger, w, http.StatusOK, buildAdminReviewResponse(review, store))
+		common.WriteJSON(h.logger, w, http.StatusOK, adminSurveyDomainToResponse(*survey))
 	}
 }
 
 func (h *Handler) reviewUpdateHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		idParam := strings.TrimSpace(chi.URLParam(r, "id"))
-		h.logger.Printf("admin review content update request id=%q", idParam)
-		objectID, err := primitive.ObjectIDFromHex(idParam)
-		if err != nil {
-			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "レビューIDの形式が不正です"})
+		if idParam == "" {
+			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "アンケートIDが指定されていません"})
 			return
 		}
 
@@ -147,204 +88,233 @@ func (h *Handler) reviewUpdateHandler() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
 
-		var existing mongodoc.ReviewDocument
-		if err := h.reviews.FindOne(ctx, bson.M{"_id": objectID}).Decode(&existing); err != nil {
-			if errors.Is(err, mongo.ErrNoDocuments) {
-				h.logger.Printf("admin review content update not found id=%q", idParam)
-				common.WriteJSON(h.logger, w, http.StatusNotFound, map[string]string{"error": "レビューが見つかりません"})
-				return
-			}
-			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "レビューの取得に失敗しました"})
-			return
-		}
-
-		reviewUpdate := bson.M{}
-		storeUpdate := bson.M{}
-		now := time.Now().In(h.location)
-		var addIndustry string
-		targetStoreID := existing.StoreID
-		storeChanged := false
-
-		if req.StoreID != nil {
-			storeIDHex := strings.TrimSpace(*req.StoreID)
-			if storeIDHex == "" {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "店舗IDが指定されていません"})
-				return
-			}
-			newStoreID, err := primitive.ObjectIDFromHex(storeIDHex)
-			if err != nil {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "店舗IDの形式が不正です"})
-				return
-			}
-			if newStoreID != existing.StoreID {
-				if err := h.stores.FindOne(ctx, bson.M{"_id": newStoreID}).Err(); err != nil {
-					if errors.Is(err, mongo.ErrNoDocuments) {
-						common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "指定された店舗が存在しません"})
-						return
-					}
-					h.logger.Printf("admin review content update store lookup failed id=%q storeId=%s err=%v", idParam, storeIDHex, err)
-					common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
-					return
-				}
-				reviewUpdate["storeId"] = newStoreID
-				targetStoreID = newStoreID
-				storeChanged = true
-			} else {
-				targetStoreID = existing.StoreID
-			}
-		}
-
-		if req.StoreName != nil {
-			name := strings.TrimSpace(*req.StoreName)
-			if name == "" {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "店舗名は必須です"})
-				return
-			}
-			storeUpdate["name"] = name
-		}
-		if req.BranchName != nil {
-			storeUpdate["branchName"] = strings.TrimSpace(*req.BranchName)
-		}
-		if req.Prefecture != nil {
-			storeUpdate["prefecture"] = strings.TrimSpace(*req.Prefecture)
-		}
-		if req.Category != nil {
-			category := common.CanonicalIndustryCode(*req.Category)
-			reviewUpdate["industryCode"] = category
-			if category != "" {
-				addIndustry = category
-			}
-		}
-		if req.VisitedAt != nil {
-			period, err := formatSurveyPeriod(strings.TrimSpace(*req.VisitedAt))
-			if err != nil {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			reviewUpdate["period"] = period
-		}
-		if req.Age != nil {
-			age := *req.Age
-			if age < 18 {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "年齢は18歳以上で入力してください"})
-				return
-			}
-			if age > 60 {
-				age = 60
-			}
-			reviewUpdate["age"] = age
-		}
-		if req.SpecScore != nil {
-			spec := *req.SpecScore
-			if spec < 60 {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "スペックは60以上で入力してください"})
-				return
-			}
-			if spec > 140 {
-				spec = 140
-			}
-			reviewUpdate["specScore"] = spec
-		}
-		if req.WaitTimeHours != nil {
-			wait := *req.WaitTimeHours
-			if wait < 1 {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "待機時間は1時間以上で入力してください"})
-				return
-			}
-			if wait > 24 {
-				wait = 24
-			}
-			reviewUpdate["waitTimeHours"] = wait
-		}
-		if req.AverageEarning != nil {
-			earning := *req.AverageEarning
-			if earning < 0 {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "平均稼ぎは0以上で入力してください"})
-				return
-			}
-			if earning > 20 {
-				earning = 20
-			}
-			reviewUpdate["averageEarning"] = earning
-		}
-		if req.Comment != nil {
-			comment := strings.TrimSpace(*req.Comment)
-			if len([]rune(comment)) > 2000 {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "感想は2000文字以内で入力してください"})
-				return
-			}
-			reviewUpdate["comment"] = comment
-		}
-		if req.Rating != nil {
-			rating := *req.Rating
-			if rating < 0 || rating > 5 {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "総評は0〜5の範囲で入力してください"})
-				return
-			}
-			reviewUpdate["rating"] = math.Round(rating*2) / 2
-		}
-		if req.ContactEmail != nil {
-			email, err := normalizeEmail(*req.ContactEmail)
-			if err != nil {
-				common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": err.Error()})
-				return
-			}
-			reviewUpdate["contactEmail"] = email
-		}
-
-		if len(storeUpdate) == 0 && len(reviewUpdate) == 0 && addIndustry == "" {
-			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": "更新内容が指定されていません"})
-			return
-		}
-
-		if len(storeUpdate) > 0 && !targetStoreID.IsZero() {
-			storeUpdate["updatedAt"] = now
-			if _, err := h.stores.UpdateByID(ctx, targetStoreID, bson.M{"$set": storeUpdate}); err != nil {
-				h.logger.Printf("admin review content update store update failed id=%q storeId=%s err=%v", idParam, targetStoreID.Hex(), err)
-				common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の更新に失敗しました"})
-				return
-			}
-		}
-		if addIndustry != "" && !targetStoreID.IsZero() {
-			if _, err := h.stores.UpdateByID(ctx, targetStoreID, bson.M{"$addToSet": bson.M{"industries": addIndustry}}); err != nil {
-				h.logger.Printf("admin review content update industry append failed id=%q storeId=%s err=%v", idParam, targetStoreID.Hex(), err)
-			}
-		}
-
-		var updated mongodoc.ReviewDocument
-		if len(reviewUpdate) > 0 {
-			reviewUpdate["updatedAt"] = now
-			result := h.reviews.FindOneAndUpdate(ctx, bson.M{"_id": objectID}, bson.M{"$set": reviewUpdate}, options.FindOneAndUpdate().SetReturnDocument(options.After))
-			if err := result.Decode(&updated); err != nil {
-				if errors.Is(err, mongo.ErrNoDocuments) {
-					h.logger.Printf("admin review content update disappeared id=%q", idParam)
-					common.WriteJSON(h.logger, w, http.StatusNotFound, map[string]string{"error": "レビューが見つかりません"})
-					return
-				}
-				common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "レビューの更新に失敗しました"})
-				return
-			}
-		} else {
-			updated = existing
-		}
-
-		if err := h.recalculateStoreStats(ctx, updated.StoreID); err != nil {
-			h.logger.Printf("admin review content update stats recalculation failed id=%q err=%v", idParam, err)
-		}
-		if storeChanged && existing.StoreID != updated.StoreID && !existing.StoreID.IsZero() {
-			if err := h.recalculateStoreStats(ctx, existing.StoreID); err != nil {
-				h.logger.Printf("admin review content update old store stats recalculation failed id=%q storeId=%s err=%v", idParam, existing.StoreID.Hex(), err)
-			}
-		}
-
-		store, err := h.getStoreByID(ctx, updated.StoreID)
+		existing, err := h.surveyService.Detail(ctx, idParam)
 		if err != nil {
-			h.logger.Printf("admin review content update store fetch failed id=%q storeId=%s err=%v", idParam, updated.StoreID.Hex(), err)
-			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "店舗情報の取得に失敗しました"})
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				common.WriteJSON(h.logger, w, http.StatusNotFound, map[string]string{"error": "アンケートが見つかりません"})
+				return
+			}
+			h.logger.Printf("admin review update detail fetch failed id=%s err=%v", idParam, err)
+			common.WriteJSON(h.logger, w, http.StatusInternalServerError, map[string]string{"error": "アンケートの取得に失敗しました"})
 			return
 		}
 
-		response := buildAdminReviewResponse(updated, store)
-		common.WriteJSON(h.logger, w, http.StatusOK, response)
+		cmd := buildSurveyCommandFromDomain(*existing)
+		if err := applyReviewUpdateRequest(req, &cmd, *existing); err != nil {
+			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		updated, err := h.surveyService.Update(ctx, idParam, cmd)
+		if err != nil {
+			if errors.Is(err, mongo.ErrNoDocuments) {
+				common.WriteJSON(h.logger, w, http.StatusNotFound, map[string]string{"error": "アンケートが見つかりません"})
+				return
+			}
+			h.logger.Printf("admin review update failed id=%s err=%v", idParam, err)
+			common.WriteJSON(h.logger, w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+
+		common.WriteJSON(h.logger, w, http.StatusOK, adminSurveyDomainToResponse(*updated))
 	}
+}
+
+func buildSurveyCommandFromDomain(survey admindomain.Survey) adminapp.UpsertSurveyCommand {
+	cmd := adminapp.UpsertSurveyCommand{
+		StoreID:         survey.StoreID,
+		StoreName:       survey.StoreName,
+		BranchName:      survey.BranchName,
+		Prefecture:      survey.Prefecture.String(),
+		Area:            survey.Area,
+		Industries:      survey.Industries.Strings(),
+		Genre:           survey.Genre,
+		Period:          survey.Period,
+		EmploymentType:  survey.EmploymentType,
+		CustomerNote:    survey.CustomerNote,
+		StaffNote:       survey.StaffNote,
+		EnvironmentNote: survey.EnvironmentNote,
+		Comment:         survey.Comment,
+		ContactEmail:    survey.ContactEmail.String(),
+		Tags:            survey.Tags.Strings(),
+		Rating:          survey.Rating.Float64(),
+		HelpfulCount:    survey.HelpfulCount,
+	}
+	if survey.Age != nil {
+		cmd.Age = common.IntPtr(*survey.Age)
+	}
+	if survey.SpecScore != nil {
+		cmd.SpecScore = common.IntPtr(*survey.SpecScore)
+	}
+	if survey.WaitTime != nil {
+		cmd.WaitTime = common.IntPtr(*survey.WaitTime)
+	}
+	if survey.AverageEarning != nil {
+		cmd.AverageEarning = common.IntPtr(*survey.AverageEarning)
+	}
+	if len(survey.Photos) > 0 {
+		cmd.Photos = mapSurveyPhotosToCommands(survey.Photos)
+	}
+	return cmd
+}
+
+func mapSurveyPhotosToCommands(photos []admindomain.SurveyPhoto) []adminapp.SurveyPhotoCommand {
+	result := make([]adminapp.SurveyPhotoCommand, 0, len(photos))
+	for _, photo := range photos {
+		result = append(result, adminapp.SurveyPhotoCommand{
+			ID:          photo.ID,
+			StoredPath:  photo.StoredPath,
+			PublicURL:   photo.PublicURL.String(),
+			ContentType: photo.ContentType,
+			UploadedAt:  photo.UploadedAt,
+		})
+	}
+	return result
+}
+
+func applyReviewUpdateRequest(req updateReviewContentRequest, cmd *adminapp.UpsertSurveyCommand, existing admindomain.Survey) error {
+	changed := false
+
+	if req.StoreID != nil {
+		if trimmed := strings.TrimSpace(*req.StoreID); trimmed != "" && trimmed != existing.StoreID {
+			return errors.New("店舗IDの変更はできません")
+		}
+	}
+
+	if req.StoreName != nil {
+		name := strings.TrimSpace(*req.StoreName)
+		if name == "" {
+			return errors.New("店舗名は必須です")
+		}
+		cmd.StoreName = name
+		changed = true
+	}
+	if req.BranchName != nil {
+		cmd.BranchName = strings.TrimSpace(*req.BranchName)
+		changed = true
+	}
+	if req.Prefecture != nil {
+		cmd.Prefecture = strings.TrimSpace(*req.Prefecture)
+		changed = true
+	}
+	if req.Category != nil {
+		category := common.CanonicalIndustryCode(*req.Category)
+		if category == "" {
+			return errors.New("業種を指定してください")
+		}
+		cmd.Industries = []string{category}
+		changed = true
+	}
+	if req.VisitedAt != nil {
+		period, err := formatSurveyPeriod(strings.TrimSpace(*req.VisitedAt))
+		if err != nil {
+			return err
+		}
+		cmd.Period = period
+		changed = true
+	}
+	if req.Age != nil {
+		value, err := validateAge(*req.Age)
+		if err != nil {
+			return err
+		}
+		cmd.Age = common.IntPtr(value)
+		changed = true
+	}
+	if req.SpecScore != nil {
+		value, err := validateSpecScore(*req.SpecScore)
+		if err != nil {
+			return err
+		}
+		cmd.SpecScore = common.IntPtr(value)
+		changed = true
+	}
+	if req.WaitTimeHours != nil {
+		value, err := validateWaitTimeHours(*req.WaitTimeHours)
+		if err != nil {
+			return err
+		}
+		minutes := value * 60
+		cmd.WaitTime = common.IntPtr(minutes)
+		cmd.WaitTimeHours = nil
+		changed = true
+	}
+	if req.AverageEarning != nil {
+		value, err := validateAverageEarning(*req.AverageEarning)
+		if err != nil {
+			return err
+		}
+		cmd.AverageEarning = common.IntPtr(value)
+		changed = true
+	}
+	if req.Comment != nil {
+		comment := strings.TrimSpace(*req.Comment)
+		if len([]rune(comment)) > 2000 {
+			return errors.New("感想は2000文字以内で入力してください")
+		}
+		cmd.Comment = comment
+		cmd.CustomerNote = comment
+		changed = true
+	}
+	if req.Rating != nil {
+		rating := *req.Rating
+		if rating < 0 || rating > 5 {
+			return errors.New("総評は0〜5の範囲で入力してください")
+		}
+		cmd.Rating = math.Round(rating*2) / 2
+		changed = true
+	}
+	if req.ContactEmail != nil {
+		email, err := normalizeEmail(*req.ContactEmail)
+		if err != nil {
+			return err
+		}
+		cmd.ContactEmail = email
+		changed = true
+	}
+
+	if !changed {
+		return errors.New("更新内容が指定されていません")
+	}
+	return nil
+}
+
+func validateAge(age int) (int, error) {
+	if age < 18 {
+		return 0, errors.New("年齢は18歳以上で入力してください")
+	}
+	if age > 60 {
+		return 60, nil
+	}
+	return age, nil
+}
+
+func validateSpecScore(score int) (int, error) {
+	if score < 60 {
+		return 0, errors.New("スペックは60以上で入力してください")
+	}
+	if score > 140 {
+		return 140, nil
+	}
+	return score, nil
+}
+
+func validateWaitTimeHours(hours int) (int, error) {
+	if hours < 1 {
+		return 0, errors.New("待機時間は1時間以上で入力してください")
+	}
+	if hours > 24 {
+		return 24, nil
+	}
+	return hours, nil
+}
+
+func validateAverageEarning(value int) (int, error) {
+	if value < 0 {
+		return 0, errors.New("平均稼ぎは0以上で入力してください")
+	}
+	if value > 20 {
+		return 20, nil
+	}
+	return value, nil
 }
